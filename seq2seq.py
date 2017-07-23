@@ -83,9 +83,17 @@ And for more, read the papers that introduced these topics:
    Translate <https://arxiv.org/abs/1409.0473>`__
 -  `A Neural Conversational Model <http://arxiv.org/abs/1506.05869>`__
 
-
 **Requirements**
 """
+
+## set paths
+# default values for the dataset and the path to the project/dataset
+dataset = 'squad'
+f_name = 'train_v1.1.json'
+path_to_dataset = '~/Documents/QA_QG/data/'
+path_to_data = path_to_dataset + dataset + '/' + f_name
+GLOVE_DIR = path_to_data + 'glove.6B/'
+
 from __future__ import unicode_literals, print_function, division
 from io import open
 import unicodedata
@@ -297,12 +305,6 @@ def prepareData(path_to_data, lang1, lang2, lang3, lang4):
     print(all_lang.name, all_lang.n_words)
     return c_lang, q_lang, a_lang, all_lang, triplets
 
-# default values for the dataset and the path to the project/dataset
-dataset = 'squad'
-f_name = 'train_v1.1.json'
-path_to_dataset = '/Users/zichaowang/Documents/question_generation/dataset/'
-path_to_data = path_to_dataset + dataset + '/' + f_name
-
 c_lang, q_lang, a_lang, all_lang, triplets = prepareData(path_to_data, 'context', 'question', 'answer', 'all')
 print(random.choice(triplets))
 
@@ -477,9 +479,10 @@ class DecoderRNN(nn.Module):
 #
 
 class AttnDecoderRNN(nn.Module):
-    def __init__(self, input_dim, hidden_size, output_size, n_layers=1, dropout_p=0.1, max_length=MAX_LENGTH):
+    def __init__(self, input_dim, hidden_size, output_size, n_layers=1, dropout_p=0.1, enc_output_len):
         super(AttnDecoderRNN, self).__init__()
         self.input_dim = input_dim
+        self.enc_output_len = enc_output_len
         self.hidden_size = hidden_size
         self.output_size = output_size
         self.n_layers = n_layers
@@ -487,8 +490,8 @@ class AttnDecoderRNN(nn.Module):
         # self.max_length = max_length
 
         self.embedding = nn.Embedding(self.output_size, self.input_dim)
-        self.attn = nn.Linear(self.hidden_size * 2, self.max_length)
-        self.attn_combine = nn.Linear(self.hidden_size * 2, self.input_dim)
+        self.attn = nn.Linear(self.input_dim+self.hidden_size, self.enc_output_len)
+        self.attn_combine = nn.Linear(self.input_dim+self.hidden_size, self.input_dim)
         self.dropout = nn.Dropout(self.dropout_p)
         self.gru = nn.GRU(self.input_dim, self.hidden_size)
         self.out = nn.Linear(self.hidden_size, self.output_size)
@@ -538,6 +541,18 @@ class AttnDecoderRNN(nn.Module):
 # EOS token to both sequences.
 #
 
+# first load the pretrained word embeddings
+embeddings_index = {}
+f = open(os.path.join(GLOVE_DIR, 'glove.6B.100d.txt'))
+for line in f:
+    values = line.split()
+    word = values[0]
+    coefs = np.asarray(values[1:], dtype='float32')
+    embeddings_index[word] = coefs
+f.close()
+
+print('Found %s word vectors.' % len(embeddings_index))
+
 def indexesFromSentence(lang, sentence):
     return [lang.word2index[word] for word in sentence.split(' ')]
 
@@ -552,9 +567,10 @@ def variableFromSentence(lang, sentence):
         return result
 
 
-def variablesFromPair(pair):
-    input_variable = variableFromSentence(input_lang, pair[0])
-    target_variable = variableFromSentence(output_lang, pair[1])
+def variablesFromTriplets(triple):
+    context = variableFromSentence(lang, triple[0])
+    answer = variableFromSentence(lang, triple[2])
+    question = variableFromSentence(lang, triple[1])
     return (input_variable, target_variable)
 
 
@@ -588,7 +604,9 @@ def variablesFromPair(pair):
 teacher_forcing_ratio = 0.5
 
 # context = input_variable
-def train(input_variable_context, input_variable_answer, target_variable, encoder1, encoder2, decoder, encoder_optimizer1, encoder_optimizer2, decoder_optimizer, criterion, max_length=MAX_LENGTH):
+def train(input_variable_context, input_variable_answer, target_variable, 
+    encoder1, encoder2, decoder, encoder_optimizer1, encoder_optimizer2, 
+    decoder_optimizer, criterion):
     encoder_hidden_context = encoder1.initHidden()
     encoder_hidden_answer = encoder2.initHidden()
 
@@ -600,23 +618,29 @@ def train(input_variable_context, input_variable_answer, target_variable, encode
     input_length_answer = input_variable_answer.size()[0]
     target_length = target_variable.size()[0]
     
-    encoder_outputs_context = Variable(torch.zeros(max_length, encoder1.hidden_size))
+    encoder_outputs_context = Variable(torch.zeros(input_length_context, encoder1.hidden_size))
     encoder_outputs_context = encoder_outputs_context.cuda() if use_cuda else encoder_outputs_context
 
-    encoder_outputs_answer = Variable(torch.zeros(max_length, encoder2.hidden_size))
+    encoder_outputs_answer = Variable(torch.zeros(input_length_answer, encoder2.hidden_size))
     encoder_outputs_answer = encoder_outputs_answer.cuda() if use_cuda else encoder_outputs_answer
    
     loss = 0
 
+    # context encoding
 	for ei in range(input_length_context):
     	encoder_output_context, encoder_hidden_context = encoder1(
         	input_variable_context[ei], encoder_hidden_context)
     	encoder_outputs_context[ei] = encoder_output_context[0][0]
 
+    # answer encoding
     for ei in range(input_length_answer):
         encoder_output_answer, encoder_hidden_answer = encoder2(
             input_variable_answer[ei], encoder_hidden_answer)
         encoder_outputs_answer[ei] = encoder_output_answer[0][0]
+
+    # concat the context encoding and answer encoding
+    encoder_output = torch.cat(encoder_output_context, encoder_output_answer)
+    encoder_outputs = torch.cat(encoder_outputs_context, encoder_outputs_answer)
 
     decoder_input = Variable(torch.LongTensor([[SOS_token]]))
     decoder_input = decoder_input.cuda() if use_cuda else decoder_input
@@ -848,13 +872,14 @@ def evaluateRandomly(encoder, decoder, n=10):
 #    encoder and decoder are initialized and run ``trainIters`` again.
 #
 
-hidden_size = 256
+hidden_size1 = 256
+hidden_size2 = 64
 # context encoder
-encoder1 = EncoderRNN(input_lang.n_words, hidden_size)
+encoder1 = EncoderRNN(c_lang.n_words, hidden_size1)
 # answer encoder
-encoder2 = EncoderRNN(input_lang.n_words, hidden_size)
+encoder2 = EncoderRNN(a_lang.n_words, hidden_size2)
 # decoder
-attn_decoder1 = AttnDecoderRNN(hidden_size, output_lang.n_words,
+attn_decoder1 = AttnDecoderRNN(hidden_size, q_lang.n_words,
                                1, dropout_p=0.1)
 
 if use_cuda:
@@ -862,12 +887,12 @@ if use_cuda:
     encoder2 = encoder2.cuda()
     attn_decoder1 = attn_decoder1.cuda()
 
-trainIters(encoder1, attn_decoder1, 75000, print_every=5000)
+trainIters(encoder1, encoder2, attn_decoder1, 75000, print_every=5000)
 
 ######################################################################
 #
 
-evaluateRandomly(encoder1, attn_decoder1)
+evaluateRandomly(encoder1, encoder2, attn_decoder1)
 
 
 ######################################################################
