@@ -89,10 +89,10 @@ And for more, read the papers that introduced these topics:
 ## set paths
 # default values for the dataset and the path to the project/dataset
 dataset = 'squad'
-f_name = 'train_v1.1.json'
-path_to_dataset = '~/Documents/QA_QG/data/'
+f_name = 'train-v1.1.json'
+path_to_dataset = '/home/jack/Documents/QA_QG/data/'
 path_to_data = path_to_dataset + dataset + '/' + f_name
-GLOVE_DIR = path_to_data + 'glove.6B/'
+GLOVE_DIR = path_to_dataset + 'glove.6B/'
 
 from __future__ import unicode_literals, print_function, division
 from io import open
@@ -111,6 +111,12 @@ import torch.nn.functional as F
 # the following imports are for reading SQuAD json files
 import nltk
 import json
+import numpy as np
+import os
+
+import spacy
+from spacy.en import English
+spacynlp = English()
 
 use_cuda = torch.cuda.is_available()
 
@@ -164,10 +170,29 @@ use_cuda = torch.cuda.is_available()
 # ``word2count`` to use to later replace rare words.
 #
 
-SOS_token = 0 # start of sentence token
-EOS_token = 1 # end of sentence token
 
+# first load the pretrained word embeddings
+embeddings_index = {}
+f = open(os.path.join(GLOVE_DIR, 'glove.6B.100d.txt'))
+for line in f:
+    values = line.split()
+    word = values[0]
+    coefs = np.asarray(values[1:], dtype='float32')
+    coefs = torch.from_numpy(coefs)
+    embeddings_index[word] = coefs
+f.close()
 
+print('Found %s word vectors.' % len(embeddings_index))
+
+# get dimension from a random sample in the dict
+embeddings_dim = random.sample( embeddings_index.items(), 1 )[0][1].size(-1)
+SOS_token = torch.zeros(embeddings_dim) # start of sentence token, all zerons
+EOS_token = torch.ones(embeddings_dim) # end of sentence token, all ones
+# add special tokens to the embeddings
+embeddings_index['SOS'] = SOS_token
+embeddings_index['EOS'] = EOS_token
+
+# this class now will need to find the mapping from word to its vector through the embedding_index dictionary
 class Lang:
     def __init__(self, name):
         self.name = name
@@ -192,8 +217,7 @@ class Lang:
 
 ######################################################################
 # The files are all in Unicode, to simplify we will turn Unicode
-# characters to ASCII, make everything lowercase, and trim most
-# punctuation.
+# characters to ASCII, make everything lowercase
 #
 
 # Turn a Unicode string to plain ASCII, thanks to
@@ -209,8 +233,8 @@ def unicodeToAscii(s):
 
 def normalizeString(s):
     s = unicodeToAscii(s.lower().strip())
-    s = re.sub(r"([.!?])", r" \1", s)
-    s = re.sub(r"[^a-zA-Z.!?]+", r" ", s)
+    # s = re.sub(r"([.!?])", r" \1", s)
+    # s = re.sub(r"[^a-zA-Z.!?]+", r" ", s)
     return s
 
 
@@ -218,33 +242,52 @@ def normalizeString(s):
 # MODIFIED from original code
 # read data specific for SQUAD dataset
 
-def readSQuAD(path_to_data, lang1, lang2, lang3, lang4):
-	# output (context, question, answer) triplets
-	print("Reading dataset...")
+def readSQuAD(path_to_data):
+    # output (context, question, answer) triplets
+    print("Reading dataset...")
+    triplets = []
+    with open(path_to_data) as f:
+        train = json.load(f)
+        train = train['data']
+        for s in range(0, len(train)):
+            samples = train[s]['paragraphs']
+            for p in range(0, len(samples)):
+                context = samples[p]['context']
+                # turn from unicode to ascii and lower case everything
+                context = normalizeString(context)
+                qas = samples[p]['qas']
+                for i in range(0, len(qas)):
+                # print('current s,p,i are: ' + str(s)+str(p)+str(i))
+                    answers = qas[i]['answers']
+                    question = qas[i]['question']  
+                    # turn from unicode to ascii and lower case everything
+                    question = normalizeString(question)
+                    for a in range(0, len(answers)):
+                        ans_text = answers[a]['text']
+                        # turn from unicode to ascii and lower case everything
+                        ans_text = normalizeString(ans_text)
+                        triplets.append((context, question, ans_text))
+    # c_lang = Lang(lang1)
+	# q_lang = Lang(lang2)
+	# a_lang = Lang(lang3)
+	# all_lang = Lang(lang4)
+    return triplets
 
-	triplets = []
-	with open(path_to_data) as f:
-		train = json.load(f)
-		train = train['data']
-		for s in range(0, len(train)):
-			samples = train[s]['paragraphs']
-			for p in range(0, len(samples)):
-				context = samples[p]['context']
-				qas = samples[p]['qas']
-				for i in range(0, len(qas)):
-					# print('current s,p,i are: ' + str(s)+str(p)+str(i))
-					answers = qas[i]['answers']
-					question = qas[i]['question']
-					for a in range(0, len(answers)):
-						ans_text = answers[a]['text']
-						triplets.append((context, question, ans_text))
-											
-	c_lang = Lang(lang1)
-	q_lang = Lang(lang2)
-	a_lang = Lang(lang3)
-	all_lang = Lang(lang4)
 
-    return c_lang, q_lang, a_lang, all_lang, triplets
+## find all tokens in the data (should be a subset of the number of embeddings)
+data_tokens = ['SOS', 'EOS']
+for triple in triplets:
+    c = [str(token) for token in spacynlp.tokenizer(triple[0])]
+    q = [str(token) for token in spacynlp.tokenizer(triple[1])]
+    a = [str(token) for token in spacynlp.tokenizer(triple[2])]
+    data_tokens += c + q + a
+data_tokens = set(data_tokens)
+# build word2index dictionary and index2word dictionary
+word2index = {}
+index2word = {}
+for i in range(0, len(data_tokens)):
+    index2word[i] = data_tokens[i]
+    word2index[data_tokens[i]] = i
 
 
 ######################################################################
@@ -259,26 +302,26 @@ def readSQuAD(path_to_data, lang1, lang2, lang3, lang4):
 # MODIFIED: in our case we will NOT do the filtering
 # longest sequence in context in dataset is 653, so just set max_len to be 1000
 
-MAX_LENGTH = 1000
+# MAX_LENGTH = 1000
 
-# eng_prefixes = (
-#     "i am ", "i m ",
-#     "he is", "he s ",
-#     "she is", "she s",
-#     "you are", "you re ",
-#     "we are", "we re ",
-#     "they are", "they re "
-# )
-
-
-def filterTriple(p):
-    return len(p[0].split(' ')) < MAX_LENGTH and \
-        len(p[1].split(' ')) < MAX_LENGTH #and \
-        # p[1].startswith(eng_prefixes)
+# # eng_prefixes = (
+# #     "i am ", "i m ",
+# #     "he is", "he s ",
+# #     "she is", "she s",
+# #     "you are", "you re ",
+# #     "we are", "we re ",
+# #     "they are", "they re "
+# # )
 
 
-def filterTriplets(triplets):
-    return [triple for triple in triplets if filterTriple(triple)]
+# def filterTriple(p):
+#     return len(p[0].split(' ')) < MAX_LENGTH and \
+#         len(p[1].split(' ')) < MAX_LENGTH #and \
+#         # p[1].startswith(eng_prefixes)
+
+
+# def filterTriplets(triplets):
+#     return [triple for triple in triplets if filterTriple(triple)]
 
 
 ######################################################################
@@ -289,24 +332,65 @@ def filterTriplets(triplets):
 # -  Make word lists from sentences in pairs
 #
 
-def prepareData(path_to_data, lang1, lang2, lang3, lang4):
-    c_lang, q_lang, a_lang, all_lang, triplets = readLangs(path_to_data, lang1, lang2, lang3, lang4)
-    print("Read %s (context, question, answer) triplets" % len(triplets))
-    # MODIFIED: commented out the following lines because we DO NOT do any filtering
-    # pairs = filterPairs(pairs)
-    # print("Trimmed to %s sentence pairs" % len(pairs))
-    print("Counting words...")
-    for triple in triplets:
-        c_lang.addSentence(triple[0]) # this is more a paragraph (multiple sentences) rather than a single sentence
-        q_lang.addSentence(triple[1])
-        a_lang.addSentence(triple[2])
-        all_lang.addSentence(triple[0] + ' ' +triple[2]) # only add context and question together because answer is a subset of context
-    print("Counted words in dataset (all questions + all contexts):")
-    print(all_lang.name, all_lang.n_words)
-    return c_lang, q_lang, a_lang, all_lang, triplets
+# def prepareData(path_to_data, lang1, lang2, lang3, lang4):
+#     c_lang, q_lang, a_lang, all_lang, triplets = readLangs(path_to_data, lang1, lang2, lang3, lang4)
+#     print("Read %s (context, question, answer) triplets" % len(triplets))
+#     # MODIFIED: commented out the following lines because we DO NOT do any filtering
+#     # pairs = filterPairs(pairs)
+#     # print("Trimmed to %s sentence pairs" % len(pairs))
+#     print("Counting words...")
+#     for triple in triplets:
+#         c_lang.addSentence(triple[0]) # this is more a paragraph (multiple sentences) rather than a single sentence
+#         q_lang.addSentence(triple[1])
+#         a_lang.addSentence(triple[2])
+#         all_lang.addSentence(triple[0] + ' ' +triple[2]) # only add context and question together because answer is a subset of context
+#     print("Counted words in dataset (all questions + all contexts):")
+#     print(all_lang.name, all_lang.n_words)
+#     return c_lang, q_lang, a_lang, all_lang, triplets
 
-c_lang, q_lang, a_lang, all_lang, triplets = prepareData(path_to_data, 'context', 'question', 'answer', 'all')
-print(random.choice(triplets))
+# c_lang, q_lang, a_lang, all_lang, triplets = prepareData(path_to_data, 'context', 'question', 'answer', 'all')
+# print(random.choice(triplets))
+
+
+#
+# Preparing Training Data
+# -----------------------
+#
+# To train, for each pair we will need an input tensor (indexes of the
+# words in the input sentence) and target tensor (indexes of the words in
+# the target sentence). While creating these vectors we will append the
+# EOS token to both sequences.
+#
+
+
+def tokenizeSentence(sentence, embeddings_index, embeddings_dim):
+    tokenized_sentence = spacynlp.tokenizer(sentence)
+    token_num = len(tokenized_sentence)
+    var = torch.FloatTensor(token_num+, embeddings_dim)
+    # var[0] = embeddings_index['SOS']
+    for t in range(0, token_num):
+        var[t] = embeddings_index[str(tokenized_sentence[t])]
+    var[-1] = embeddings_index['EOS']
+    return var
+
+
+# def variableFromSentence(sentence, embeddings_index):
+#     # indexes = indexesFromSentence(lang, sentence)
+#     # indexes.append(EOS_token)
+#     result = Variable(torch.LongTensor(indexes).view(-1, 1))
+#     if use_cuda:
+#         return result.cuda()
+#     else:
+#         return result
+
+
+def variablesFromTriplets(triple, embeddings_index, embeddings_dim):
+    context = tokenizeSentence(triple[0], embeddings_index, embeddings_dim)
+    answer = tokenizeSentence(triple[2], embeddings_index, embeddings_dim)
+    question = tokenizeSentence(triple[1], embeddings_index, embeddings_dim)
+    return (Variable(context), Variable(question), Variable(answer))
+
+
 
 
 ######################################################################
@@ -361,17 +445,17 @@ print(random.choice(triplets))
 
 class EncoderRNN(nn.Module):
 	# output is the same dimension as input (dimension defined by externalword embedding model)
-    def __init__(self, input_size, input_dim, hidden_size, n_layers=1):
+    def __init__(self, input_size, hidden_size, embeddings_index, n_layers=1):
         super(EncoderRNN, self).__init__()
         self.n_layers = n_layers
         self.hidden_size = hidden_size
-        self.input_dim = input_dim
+        self.input_size = input_size
 
-        self.embedding = nn.Embedding(input_size, input_dim)
+        # self.embedding = nn.Embedding(input_size, input_dim)
         self.gru = nn.GRU(input_dim, hidden_size)
 
     def forward(self, input, hidden):
-        embedded = self.embedding(input).view(1, 1, -1)
+        embedded = embeddings_index[input].view(1, 1, -1)
         output = embedded
         for i in range(self.n_layers):
             output, hidden = self.gru(output, hidden)
@@ -413,20 +497,20 @@ class EncoderRNN(nn.Module):
 #
 
 class DecoderRNN(nn.Module):
-    def __init__(self, input_dim, hidden_size, output_size, n_layers=1):
+    def __init__(self, input_size, hidden_size, output_size, n_layers=1):
         super(DecoderRNN, self).__init__()
         self.n_layers = n_layers
         self.hidden_size = hidden_size
-        self.input_dim = input_dim
+        self.input_size = input_size
         # TODO this following embedding should change. 
         # each embedding is of dimension input_dim defined by external word embedding
-        self.embedding = nn.Embedding(input_size, input_dim)
+        # self.embedding = nn.Embedding(input_size, input_dim)
         self.gru = nn.GRU(input_dim, hidden_size)
         self.out = nn.Linear(hidden_size, output_size)
         self.softmax = nn.LogSoftmax()
 
     def forward(self, input, hidden):
-        output = self.embedding(input).view(1, 1, -1)
+        output = embeddings_index[input].view(1, 1, -1)
         for i in range(self.n_layers):
             output = F.relu(output)
             output, hidden = self.gru(output, hidden)
@@ -479,9 +563,9 @@ class DecoderRNN(nn.Module):
 #
 
 class AttnDecoderRNN(nn.Module):
-    def __init__(self, input_dim, hidden_size, output_size, n_layers=1, dropout_p=0.1, enc_output_len):
+    def __init__(self, input_size, hidden_size, output_size, embeddings_index, n_layers=1, dropout_p=0.1, enc_output_len):
         super(AttnDecoderRNN, self).__init__()
-        self.input_dim = input_dim
+        self.input_size = input_size
         self.enc_output_len = enc_output_len
         self.hidden_size = hidden_size
         self.output_size = output_size
@@ -489,16 +573,16 @@ class AttnDecoderRNN(nn.Module):
         self.dropout_p = dropout_p
         # self.max_length = max_length
 
-        self.embedding = nn.Embedding(self.output_size, self.input_dim)
-        self.attn = nn.Linear(self.input_dim+self.hidden_size, self.enc_output_len)
-        self.attn_combine = nn.Linear(self.input_dim+self.hidden_size, self.input_dim)
+        # self.embedding = nn.Embedding(self.output_size, self.input_dim)
+        self.attn = nn.Linear(self.input_size+self.hidden_size, self.enc_output_len)
+        self.attn_combine = nn.Linear(self.input_size+self.hidden_size, self.input_dim)
         self.dropout = nn.Dropout(self.dropout_p)
-        self.gru = nn.GRU(self.input_dim, self.hidden_size)
+        self.gru = nn.GRU(self.input_size, self.hidden_size)
         self.out = nn.Linear(self.hidden_size, self.output_size)
 
     def forward(self, input, hidden, encoder_output, encoder_outputs):
-        embedded = self.embedding(input).view(1, 1, -1)
-        embedded = self.dropout(embedded)
+        embedded = embeddings_index[input].view(1, 1, -1)
+        # embedded = self.dropout(embedded)
 
         attn_weights = F.softmax(
             self.attn(torch.cat((embedded[0], hidden[0]), 1)))
@@ -531,47 +615,7 @@ class AttnDecoderRNN(nn.Module):
 #
 # Training
 # ========
-#
-# Preparing Training Data
-# -----------------------
-#
-# To train, for each pair we will need an input tensor (indexes of the
-# words in the input sentence) and target tensor (indexes of the words in
-# the target sentence). While creating these vectors we will append the
-# EOS token to both sequences.
-#
 
-# first load the pretrained word embeddings
-embeddings_index = {}
-f = open(os.path.join(GLOVE_DIR, 'glove.6B.100d.txt'))
-for line in f:
-    values = line.split()
-    word = values[0]
-    coefs = np.asarray(values[1:], dtype='float32')
-    embeddings_index[word] = coefs
-f.close()
-
-print('Found %s word vectors.' % len(embeddings_index))
-
-def indexesFromSentence(lang, sentence):
-    return [lang.word2index[word] for word in sentence.split(' ')]
-
-
-def variableFromSentence(lang, sentence):
-    indexes = indexesFromSentence(lang, sentence)
-    indexes.append(EOS_token)
-    result = Variable(torch.LongTensor(indexes).view(-1, 1))
-    if use_cuda:
-        return result.cuda()
-    else:
-        return result
-
-
-def variablesFromTriplets(triple):
-    context = variableFromSentence(lang, triple[0])
-    answer = variableFromSentence(lang, triple[2])
-    question = variableFromSentence(lang, triple[1])
-    return (input_variable, target_variable)
 
 
 ######################################################################
@@ -604,7 +648,7 @@ def variablesFromTriplets(triple):
 teacher_forcing_ratio = 0.5
 
 # context = input_variable
-def train(input_variable_context, input_variable_answer, target_variable, 
+def train(context_var, ans_var, question_var, embeddings_index,
     encoder1, encoder2, decoder, encoder_optimizer1, encoder_optimizer2, 
     decoder_optimizer, criterion):
     encoder_hidden_context = encoder1.initHidden()
@@ -614,9 +658,9 @@ def train(input_variable_context, input_variable_answer, target_variable,
     encoder_optimizer2.zero_grad()
     decoder_optimizer.zero_grad()
 
-    input_length_context = input_variable_context.size()[0]
-    input_length_answer = input_variable_answer.size()[0]
-    target_length = target_variable.size()[0]
+    input_length_context = context_var.size()[0]
+    input_length_answer = ans_var.size()[0]
+    target_length = question_var.size()[0]
     
     encoder_outputs_context = Variable(torch.zeros(input_length_context, encoder1.hidden_size))
     encoder_outputs_context = encoder_outputs_context.cuda() if use_cuda else encoder_outputs_context
@@ -629,20 +673,20 @@ def train(input_variable_context, input_variable_answer, target_variable,
     # context encoding
 	for ei in range(input_length_context):
     	encoder_output_context, encoder_hidden_context = encoder1(
-        	input_variable_context[ei], encoder_hidden_context)
+        	context_var[ei], encoder_hidden_context)
     	encoder_outputs_context[ei] = encoder_output_context[0][0]
 
     # answer encoding
     for ei in range(input_length_answer):
         encoder_output_answer, encoder_hidden_answer = encoder2(
-            input_variable_answer[ei], encoder_hidden_answer)
+            ans_var[ei], encoder_hidden_answer)
         encoder_outputs_answer[ei] = encoder_output_answer[0][0]
 
     # concat the context encoding and answer encoding
     encoder_output = torch.cat(encoder_output_context, encoder_output_answer)
     encoder_outputs = torch.cat(encoder_outputs_context, encoder_outputs_answer)
 
-    decoder_input = Variable(torch.LongTensor([[SOS_token]]))
+    decoder_input = Variable(embeddings_index['SOS'])
     decoder_input = decoder_input.cuda() if use_cuda else decoder_input
     
     decoder_hidden = torch.cat(encoder_hidden_context, encoder_hidden_answer)
@@ -654,8 +698,8 @@ def train(input_variable_context, input_variable_answer, target_variable,
         for di in range(target_length):
             decoder_output, decoder_hidden, decoder_attention = decoder(
                 decoder_input, decoder_hidden, encoder_output, encoder_outputs)
-            loss += criterion(decoder_output[0], target_variable[di])
-            decoder_input = target_variable[di]  # Teacher forcing
+            loss += criterion(decoder_output[0], question_var[di])
+            decoder_input = question_var[di]  # Teacher forcing
 
     else:
         # Without teacher forcing: use its own predictions as the next input
@@ -668,7 +712,7 @@ def train(input_variable_context, input_variable_answer, target_variable,
             decoder_input = Variable(torch.LongTensor([[ni]]))
             decoder_input = decoder_input.cuda() if use_cuda else decoder_input
             
-            loss += criterion(decoder_output[0], target_variable[di])
+            loss += criterion(decoder_output[0], question_var[di])
             if ni == EOS_token:
                 break
 
@@ -716,7 +760,8 @@ def timeSince(since, percent):
 # of examples, time so far, estimated time) and average loss.
 #
 
-def trainIters(encoder1, encoder2, decoder, n_iters, print_every=1000, plot_every=100, learning_rate=0.01):
+def trainIters(encoder1, encoder2, decoder, embeddings_index, 
+    n_iters, print_every=1000, plot_every=100, learning_rate=0.01):
     start = time.time()
     plot_losses = []
     print_loss_total = 0  # Reset every print_every
@@ -731,11 +776,11 @@ def trainIters(encoder1, encoder2, decoder, n_iters, print_every=1000, plot_ever
 
     for iter in range(1, n_iters + 1):
         training_triple = training_triplets[iter - 1]
-        input_variable_context = training_triple[0]
-        input_variable_answer = training_triple[2]
-        target_variable = training_pair[1]
+        context_var = training_triple[0]
+        ans_var = training_triple[2]
+        question_var = training_pair[1]
  
-        loss = train(input_variable_context, input_variable_answer target_variable, encoder1,
+        loss = train(context_var, ans_var, question_var, encoder1, embeddings_index,
                      encoder2, decoder, encoder_optimizer1, encoder_optimizer2, 
                      decoder_optimizer, criterion)
         print_loss_total += loss
@@ -746,6 +791,14 @@ def trainIters(encoder1, encoder2, decoder, n_iters, print_every=1000, plot_ever
             print_loss_total = 0
             print('%s (%d %d%%) %.4f' % (timeSince(start, iter / n_iters),
                                          iter, iter / n_iters * 100, print_loss_avg))
+            print('---sampled triple---')
+            # sample a triple and print the generated question
+            example = random.sample(triplets)
+            context_example = example[0]
+            answer_example = example[2]
+            question_example = example[1]
+
+            print()
 
         if iter % plot_every == 0:
             plot_loss_avg = plot_loss_total / plot_every
@@ -788,11 +841,11 @@ def showPlot(points):
 # attention outputs for display later.
 #
 
-def evaluate(encoder1, encoder2, decoder, context, answer, max_length=MAX_LENGTH):
-    input_variable_context = variableFromSentence(input_lang, context)
-    input_variable_answer = variableFromSentence(input_lang, answer)
-    input_length_context = input_variable_context.size()[0]
-    input_length_answer = input_variable_answer.size()[0]
+def evaluate(encoder1, encoder2, decoder, context, answer):
+    context_var = variableFromSentence(input_lang, context)
+    ans_var = variableFromSentence(input_lang, answer)
+    input_length_context = context_var.size()[0]
+    input_length_answer = ans_var.size()[0]
     encoder_hidden_context = encoder1.initHidden()
     encoder_hidden_answer = encoder2.initHidden()
 
@@ -802,12 +855,12 @@ def evaluate(encoder1, encoder2, decoder, context, answer, max_length=MAX_LENGTH
     encoder_outputs_answer = encoder_outputs_answer.cuda() if use_cuda else encoder_outputs_answer
 
     for ei in range(input_length_context):
-        encoder_outputs_context, encoder_hidden_context = encoder1(input_variable_context[ei],
+        encoder_outputs_context, encoder_hidden_context = encoder1(context_var[ei],
                                                  encoder_hidden_context)
         encoder_outputs_context[ei] = encoder_outputs_context[ei] + encoder_outputs_context[0][0]
 
     for ei in range(input_length_answer):
-        encoder_outputs_answer, encoder_hidden_answer = encoder2(input_variable_answer[ei],
+        encoder_outputs_answer, encoder_hidden_answer = encoder2(ans_var[ei],
                                                  encoder_hidden_answer)
         encoder_outputs_answer[ei] = encoder_outputs_answer[ei] + encoder_outputs_answer[0][0]
 
