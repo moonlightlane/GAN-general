@@ -940,6 +940,7 @@ UNK_token = torch.ones(embeddings_size) + torch.ones(embeddings_size) # these ch
 # add special tokens to the embeddings
 embeddings_index['SOS'] = SOS_token
 embeddings_index['EOS'] = EOS_token
+embeddings_index['UNK'] = UNK_token
 
 # read data
 triplets = readSQuAD(path_to_data)
