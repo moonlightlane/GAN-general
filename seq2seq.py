@@ -332,7 +332,7 @@ def tokenizeSentence(sentence, embeddings_index, embeddings_size):
             print('original word>')
             print(tokenized_sentence[t])
             print('string format>')
-            print(tokenized_sentence[t].string))
+            print(tokenized_sentence[t].string)
     # add end of sentence token to all sentences
     var[-1] = embeddings_index['EOS']
     return var
