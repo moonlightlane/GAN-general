@@ -223,7 +223,7 @@ def readSQuAD(path_to_data):
         train = json.load(f)
         train = train['data']
         for s in range(0, len(train)):
-            samples = train[s]['paragraphs']
+            samples = train[s]['paragraphs'].lower().strip() 
             for p in range(0, len(samples)):
                 context = samples[p]['context']
                 # turn from unicode to ascii and lower case everything
@@ -232,11 +232,11 @@ def readSQuAD(path_to_data):
                 for i in range(0, len(qas)):
                 # print('current s,p,i are: ' + str(s)+str(p)+str(i))
                     answers = qas[i]['answers']
-                    question = qas[i]['question']  
+                    question = qas[i]['question'].lower().strip()
                     # turn from unicode to ascii and lower case everything
                     question = normalizeString(question)
                     for a in range(0, len(answers)):
-                        ans_text = answers[a]['text']
+                        ans_text = answers[a]['text'].lower().strip()
                         # turn from unicode to ascii and lower case everything
                         ans_text = normalizeString(ans_text)
                         triplets.append((context, question, ans_text))
