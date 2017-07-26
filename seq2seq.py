@@ -323,7 +323,7 @@ def readSQuAD(path_to_data):
 def tokenizeSentence(sentence, embeddings_index, embeddings_size):
     tokenized_sentence = spacynlp.tokenizer(sentence)
     token_num = len(tokenized_sentence)
-    var = torch.FloatTensor(token_num+, embeddings_size)
+    var = torch.FloatTensor(token_num+1, embeddings_size) #add one dimension for EOS
     # var[0] = embeddings_index['SOS']
     for t in range(0, token_num):
         var[t] = embeddings_index[str(tokenized_sentence[t])]
@@ -633,7 +633,7 @@ def train(context_var, ans_var, question_var, embeddings_index,
     loss = 0
 
     # context encoding
-	for ei in range(input_length_context):
+    for ei in range(input_length_context):
     	encoder_output_context, encoder_hidden_context = encoder1(
         	context_var[ei], encoder_hidden_context)
     	encoder_outputs_context[ei] = encoder_output_context[0][0]
