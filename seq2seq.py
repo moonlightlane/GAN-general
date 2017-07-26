@@ -737,8 +737,9 @@ def trainIters(encoder1, encoder2, decoder, embeddings_index,
     encoder_optimizer1 = optim.SGD(encoder1.parameters(), lr=learning_rate)
     encoder_optimizer2 = optim.SGD(encoder2.parameters(), lr=learning_rate)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
-    training_triplets = [variablesFromTriplets(random.choice(triplets))
-                      for i in range(n_iters)]
+    training_triplets = [variablesFromTriplets(random.choice(triplets), 
+                                                embeddings_index, embeddings_size)
+                        for i in range(n_iters)]
     criterion = nn.NLLLoss()
 
     for iter in range(1, n_iters + 1):
@@ -927,7 +928,6 @@ embeddings_index['EOS'] = EOS_token
 
 # read data
 triplets = readSQuAD(path_to_data)
-print('reading data complete.')
 
 ## find all unique tokens in the data (should be a subset of the number of embeddings)
 data_tokens = ['SOS', 'EOS']
@@ -937,13 +937,16 @@ for triple in triplets:
     a = [str(token) for token in spacynlp.tokenizer(triple[2])]
     data_tokens += c + q + a
 data_tokens = list(set(data_tokens)) # find unique
-print('found %s unique tokens in corpus.' % len(data_tokens))
+
 # build word2index dictionary and index2word dictionary
 word2index = {}
 index2word = {}
 for i in range(0, len(data_tokens)):
     index2word[i] = data_tokens[i]
     word2index[data_tokens[i]] = i
+
+print('reading and preprocessing data complete.')
+print('found %s unique tokens in corpus.' % len(data_tokens))
 if use_cuda:
     print('GPU ready.')
 print('')
