@@ -86,13 +86,7 @@ And for more, read the papers that introduced these topics:
 **Requirements**
 """
 
-## set paths
-# default values for the dataset and the path to the project/dataset
-dataset = 'squad'
-f_name = 'train-v1.1.json'
-path_to_dataset = '/home/jack/Documents/QA_QG/data/'
-path_to_data = path_to_dataset + dataset + '/' + f_name
-GLOVE_DIR = path_to_dataset + 'glove.6B/'
+
 
 from __future__ import unicode_literals, print_function, division
 from io import open
@@ -170,27 +164,6 @@ use_cuda = torch.cuda.is_available()
 # ``word2count`` to use to later replace rare words.
 #
 
-
-# first load the pretrained word embeddings
-embeddings_index = {}
-f = open(os.path.join(GLOVE_DIR, 'glove.6B.100d.txt'))
-for line in f:
-    values = line.split()
-    word = values[0]
-    coefs = np.asarray(values[1:], dtype='float32')
-    coefs = torch.from_numpy(coefs)
-    embeddings_index[word] = coefs
-f.close()
-
-print('Found %s word vectors.' % len(embeddings_index))
-
-# get dimension from a random sample in the dict
-embeddings_size = random.sample( embeddings_index.items(), 1 )[0][1].size(-1)
-SOS_token = -torch.ones(embeddings_size) # start of sentence token, all zerons
-EOS_token = torch.ones(embeddings_size) # end of sentence token, all ones
-# add special tokens to the embeddings
-embeddings_index['SOS'] = SOS_token
-embeddings_index['EOS'] = EOS_token
 
 # # this class now will need to find the mapping from word to its vector through the embedding_index dictionary
 # class Lang:
@@ -272,22 +245,6 @@ def readSQuAD(path_to_data):
 	# a_lang = Lang(lang3)
 	# all_lang = Lang(lang4)
     return triplets
-
-
-## find all tokens in the data (should be a subset of the number of embeddings)
-data_tokens = ['SOS', 'EOS']
-for triple in triplets:
-    c = [str(token) for token in spacynlp.tokenizer(triple[0])]
-    q = [str(token) for token in spacynlp.tokenizer(triple[1])]
-    a = [str(token) for token in spacynlp.tokenizer(triple[2])]
-    data_tokens += c + q + a
-data_tokens = set(data_tokens)
-# build word2index dictionary and index2word dictionary
-word2index = {}
-index2word = {}
-for i in range(0, len(data_tokens)):
-    index2word[i] = data_tokens[i]
-    word2index[data_tokens[i]] = i
 
 
 ######################################################################
@@ -566,7 +523,7 @@ class DecoderRNN(nn.Module):
 
 class AttnDecoderRNN(nn.Module):
     def __init__(self, input_size, hidden_size, output_size, 
-        embeddings_index, n_layers=1, dropout_p=0.1, enc_output_len):
+        embeddings_index, enc_output_len, n_layers=1, dropout_p=0.1):
         super(AttnDecoderRNN, self).__init__()
         self.input_size = input_size
         self.enc_output_len = enc_output_len
@@ -934,6 +891,53 @@ def evaluateRandomly(encoder1, encoder2, decoder, triplets, n=1):
 #    encoder and decoder are initialized and run ``trainIters`` again.
 #
 
+######### set paths
+# default values for the dataset and the path to the project/dataset
+dataset = 'squad'
+f_name = 'train-v1.1.json'
+path_to_dataset = '/home/jack/Documents/QA_QG/data/'
+path_to_data = path_to_dataset + dataset + '/' + f_name
+GLOVE_DIR = path_to_dataset + 'glove.6B/'
+
+######### first load the pretrained word embeddings
+embeddings_index = {}
+f = open(os.path.join(GLOVE_DIR, 'glove.6B.100d.txt'))
+for line in f:
+    values = line.split()
+    word = values[0]
+    coefs = np.asarray(values[1:], dtype='float32')
+    coefs = torch.from_numpy(coefs)
+    embeddings_index[word] = coefs
+f.close()
+
+print('Found %s word vectors.' % len(embeddings_index))
+
+# get dimension from a random sample in the dict
+embeddings_size = random.sample( embeddings_index.items(), 1 )[0][1].size(-1)
+SOS_token = -torch.ones(embeddings_size) # start of sentence token, all zerons
+EOS_token = torch.ones(embeddings_size) # end of sentence token, all ones
+# add special tokens to the embeddings
+embeddings_index['SOS'] = SOS_token
+embeddings_index['EOS'] = EOS_token
+
+# read data
+triplets = readSQuAD(path_to_dataset)
+
+## find all tokens in the data (should be a subset of the number of embeddings)
+data_tokens = ['SOS', 'EOS']
+for triple in triplets:
+    c = [str(token) for token in spacynlp.tokenizer(triple[0])]
+    q = [str(token) for token in spacynlp.tokenizer(triple[1])]
+    a = [str(token) for token in spacynlp.tokenizer(triple[2])]
+    data_tokens += c + q + a
+data_tokens = set(data_tokens)
+# build word2index dictionary and index2word dictionary
+word2index = {}
+index2word = {}
+for i in range(0, len(data_tokens)):
+    index2word[i] = data_tokens[i]
+    word2index[data_tokens[i]] = i
+
 hidden_size1 = 256
 hidden_size2 = 64
 # context encoder
@@ -941,8 +945,8 @@ encoder1 = EncoderRNN(embeddings_size, hidden_size1, embeddings_index)
 # answer encoder
 encoder2 = EncoderRNN(embeddings_size, hidden_size2, embeddings_index)
 # decoder
-attn_decoder1 = AttnDecoderRNN(embeddings_size, hidden_size, embeddings_size, embeddings_index,
-                               1, dropout_p=0.1)
+attn_decoder1 = AttnDecoderRNN(embeddings_size, hidden_size, embeddings_size, 
+                                embeddings_index, enc_output_len, 1, dropout_p=0.1)
 
 if use_cuda:
     encoder1 = encoder1.cuda()
