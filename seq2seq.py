@@ -225,18 +225,18 @@ def readSQuAD(path_to_data):
         for s in range(0, len(train)):
             samples = train[s]['paragraphs']
             for p in range(0, len(samples)):
-                context = samples[p]['context'].lower().strip() 
+                context = samples[p]['context']
                 # turn from unicode to ascii and lower case everything
                 context = normalizeString(context)
                 qas = samples[p]['qas']
                 for i in range(0, len(qas)):
                 # print('current s,p,i are: ' + str(s)+str(p)+str(i))
                     answers = qas[i]['answers']
-                    question = qas[i]['question'].lower().strip()
+                    question = qas[i]['question']
                     # turn from unicode to ascii and lower case everything
                     question = normalizeString(question)
                     for a in range(0, len(answers)):
-                        ans_text = answers[a]['text'].lower().strip()
+                        ans_text = answers[a]['text']
                         # turn from unicode to ascii and lower case everything
                         ans_text = normalizeString(ans_text)
                         triplets.append((context, question, ans_text))
@@ -327,7 +327,7 @@ def tokenizeSentence(sentence, embeddings_index, embeddings_size):
     # var[0] = embeddings_index['SOS']
     for t in range(0, token_num):
         try:
-            var[t] = embeddings_index[tokenized_sentence[t].string]
+            var[t] = embeddings_index[tokenized_sentence[t].string.strip()]
         except KeyError:
             print('original word>')
             print(tokenized_sentence[t])
