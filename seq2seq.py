@@ -326,7 +326,10 @@ def tokenizeSentence(sentence, embeddings_index, embeddings_size):
     var = torch.FloatTensor(token_num+1, embeddings_size) #add one dimension for EOS
     # var[0] = embeddings_index['SOS']
     for t in range(0, token_num):
-        var[t] = embeddings_index[str(tokenized_sentence[t])]
+        try:
+            var[t] = embeddings_index[str(tokenized_sentence[t])]
+        except KeyError:
+            print sentence
     # add end of sentence token to all sentences
     var[-1] = embeddings_index['EOS']
     return var
