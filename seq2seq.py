@@ -921,7 +921,7 @@ embeddings_index['SOS'] = SOS_token
 embeddings_index['EOS'] = EOS_token
 
 # read data
-triplets = readSQuAD(path_to_dataset)
+triplets = readSQuAD(path_to_data)
 
 ## find all tokens in the data (should be a subset of the number of embeddings)
 data_tokens = ['SOS', 'EOS']
