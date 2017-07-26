@@ -411,7 +411,7 @@ class EncoderRNN(nn.Module):
         self.embeddings_index = embeddings_index
 
         # self.embedding = nn.Embedding(input_size, input_dim)
-        self.gru = nn.GRU(input_dim, hidden_size)
+        self.gru = nn.GRU(input_size, hidden_size)
 
     def forward(self, input, hidden):
         embedded = self.embeddings_index[input].view(1, 1, -1)
