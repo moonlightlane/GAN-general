@@ -922,21 +922,27 @@ embeddings_index['EOS'] = EOS_token
 
 # read data
 triplets = readSQuAD(path_to_data)
+print('reading data complete.')
 
-## find all tokens in the data (should be a subset of the number of embeddings)
+## find all unique tokens in the data (should be a subset of the number of embeddings)
 data_tokens = ['SOS', 'EOS']
 for triple in triplets:
     c = [str(token) for token in spacynlp.tokenizer(triple[0])]
     q = [str(token) for token in spacynlp.tokenizer(triple[1])]
     a = [str(token) for token in spacynlp.tokenizer(triple[2])]
     data_tokens += c + q + a
-data_tokens = set(data_tokens)
+data_tokens = list(set(data_tokens)) # find unique
+print('found %s unique tokens in corpus.' % len(data_tokens))
 # build word2index dictionary and index2word dictionary
 word2index = {}
 index2word = {}
 for i in range(0, len(data_tokens)):
     index2word[i] = data_tokens[i]
     word2index[data_tokens[i]] = i
+
+print('')
+print('start training...')
+print('')
 
 hidden_size1 = 256
 hidden_size2 = 64
