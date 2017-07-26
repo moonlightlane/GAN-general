@@ -322,6 +322,10 @@ def readSQuAD(path_to_data):
 
 def tokenizeSentence(sentence, embeddings_index, embeddings_size):
     tokenized_sentence = spacynlp.tokenizer(sentence)
+    # # an additional preprocessing step to separate words and non-words when they appear together
+    # tokenized_sentence = [token.string.strip() for token in tokenized_sentence]
+    # for t in range(0, len(tokenized_sentence)):
+
     token_num = len(tokenized_sentence)
     var = torch.FloatTensor(token_num+1, embeddings_size) #add one dimension for EOS
     # var[0] = embeddings_index['SOS']
@@ -329,13 +333,14 @@ def tokenizeSentence(sentence, embeddings_index, embeddings_size):
         try:
             var[t] = embeddings_index[tokenized_sentence[t].string.strip()]
         except KeyError:
-            print('original word>')
-            print(tokenized_sentence[t])
-            print('string format>')
-            print(tokenized_sentence[t].string)
-            print(sentence)
-            print('-------------------------------------')
-            print('-------------------------------------')
+            # print('original word>')
+            # print(tokenized_sentence[t])
+            # print('string format>')
+            # print(tokenized_sentence[t].string)
+            # print(sentence)
+            # print('-------------------------------------')
+            # print('-------------------------------------')
+            var[t] = embeddings_index['UNK']
     # add end of sentence token to all sentences
     var[-1] = embeddings_index['EOS']
     return var
@@ -931,6 +936,7 @@ print('Found %s word vectors.' % len(embeddings_index))
 embeddings_size = random.sample( embeddings_index.items(), 1 )[0][1].size(-1)
 SOS_token = -torch.ones(embeddings_size) # start of sentence token, all zerons
 EOS_token = torch.ones(embeddings_size) # end of sentence token, all ones
+UNK_token = torch.ones(embeddings_size) + torch.ones(embeddings_size) # these choices are pretty random
 # add special tokens to the embeddings
 embeddings_index['SOS'] = SOS_token
 embeddings_index['EOS'] = EOS_token
@@ -939,13 +945,27 @@ embeddings_index['EOS'] = EOS_token
 triplets = readSQuAD(path_to_data)
 
 ## find all unique tokens in the data (should be a subset of the number of embeddings)
-data_tokens = ['SOS', 'EOS']
+data_tokens = ['SOS', 'EOS', 'UNK']
 for triple in triplets:
-    c = [str(token) for token in spacynlp.tokenizer(triple[0])]
-    q = [str(token) for token in spacynlp.tokenizer(triple[1])]
-    a = [str(token) for token in spacynlp.tokenizer(triple[2])]
+    c = [token.string.strip() for token in spacynlp.tokenizer(triple[0])]
+    q = [token.string.strip() for token in spacynlp.tokenizer(triple[1])]
+    a = [token.string.strip() for token in spacynlp.tokenizer(triple[2])]
     data_tokens += c + q + a
 data_tokens = list(set(data_tokens)) # find unique
+# generate some index
+token_indices = random.sample(range(0, len(data_tokens)), 20)
+# debugging purpose
+token_subset = [data_tokens[i] for i in token_indices]
+print('original tokens: ' + str(token_subset))
+# extra preprocessing step to replace all tokens in data_tokens 
+# that does not appear in embeddings_index to 'UNK'
+embeddings_keys = embeddings_index.keys()
+for t in range(0, len(data_tokens)):
+    if data_tokens[t] not in embeddings_keys:
+        data_tokens[t] = 'UNK'
+# debugging: randomly sample 20 tokens from data_tokens. shouldn't be all UNK
+token_subset = [data_tokens[i] for i in token_indices]
+print('modified tokens: ' + str(token_subset))
 
 # build word2index dictionary and index2word dictionary
 word2index = {}
