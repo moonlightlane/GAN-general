@@ -526,7 +526,7 @@ class AttnDecoderRNN(nn.Module):
         embeddings_index, n_layers=1, dropout_p=0.1):
         super(AttnDecoderRNN, self).__init__()
         self.input_size = input_size
-        self.enc_output_len = enc_output_len
+        # self.enc_output_len = enc_output_len
         self.hidden_size = hidden_size
         self.output_size = output_size
         self.n_layers = n_layers
