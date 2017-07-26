@@ -223,9 +223,9 @@ def readSQuAD(path_to_data):
         train = json.load(f)
         train = train['data']
         for s in range(0, len(train)):
-            samples = train[s]['paragraphs'].lower().strip() 
+            samples = train[s]['paragraphs']
             for p in range(0, len(samples)):
-                context = samples[p]['context']
+                context = samples[p]['context'].lower().strip() 
                 # turn from unicode to ascii and lower case everything
                 context = normalizeString(context)
                 qas = samples[p]['qas']
