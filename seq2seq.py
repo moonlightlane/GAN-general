@@ -523,7 +523,7 @@ class DecoderRNN(nn.Module):
 
 class AttnDecoderRNN(nn.Module):
     def __init__(self, input_size, hidden_size, output_size, 
-        embeddings_index, enc_output_len, n_layers=1, dropout_p=0.1):
+        embeddings_index, n_layers=1, dropout_p=0.1):
         super(AttnDecoderRNN, self).__init__()
         self.input_size = input_size
         self.enc_output_len = enc_output_len
@@ -535,18 +535,23 @@ class AttnDecoderRNN(nn.Module):
         # self.max_length = max_length
 
         # self.embedding = nn.Embedding(self.output_size, self.input_dim)
-        self.attn = nn.Linear(self.input_size+self.hidden_size, self.enc_output_len)
+        # self.attn = nn.Linear(self.input_size+self.hidden_size, self.enc_output_len)
         self.attn_combine = nn.Linear(self.input_size+self.hidden_size, self.input_size)
         self.dropout = nn.Dropout(self.dropout_p)
         self.gru = nn.GRU(self.input_size, self.hidden_size)
         self.out = nn.Linear(self.hidden_size, self.output_size)
 
     def forward(self, input, hidden, encoder_output, encoder_outputs):
+
+        # because the number of input tokens varies, we move the init of attn to here
+        # instead of in __init__ function
+        attn = nn.Linear(self.input_size+self.hidden_size, encoder_outputs.size()[0])
+
         embedded = self.embeddings_index[input].view(1, 1, -1)
         # embedded = self.dropout(embedded)
 
         attn_weights = F.softmax(
-            self.attn(torch.cat((embedded[0], hidden[0]), 1)))
+            attn(torch.cat((embedded[0], hidden[0]), 1)))
         attn_applied = torch.bmm(attn_weights.unsqueeze(0),
                                  encoder_outputs.unsqueeze(0))
 
