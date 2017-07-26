@@ -95,6 +95,10 @@ import string
 import re
 import random
 
+import spacy
+from spacy.en import English
+spacynlp = English()
+
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
@@ -107,10 +111,6 @@ import nltk
 import json
 import numpy as np
 import os
-
-import spacy
-from spacy.en import English
-spacynlp = English()
 
 use_cuda = torch.cuda.is_available()
 
