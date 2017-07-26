@@ -333,7 +333,7 @@ def tokenizeSentence(sentence, embeddings_index, embeddings_size):
             print(tokenized_sentence[t])
             print('string format>')
             print(tokenized_sentence[t].string)
-            print sentence
+            print(sentence)
             print('-------------------------------------')
             print('-------------------------------------')
     # add end of sentence token to all sentences
