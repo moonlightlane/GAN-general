@@ -951,7 +951,7 @@ encoder1 = EncoderRNN(embeddings_size, hidden_size1, embeddings_index)
 # answer encoder
 encoder2 = EncoderRNN(embeddings_size, hidden_size2, embeddings_index)
 # decoder
-attn_decoder1 = AttnDecoderRNN(embeddings_size, hidden_size, embeddings_size, 
+attn_decoder1 = AttnDecoderRNN(embeddings_size, hidden_size1, embeddings_size, 
                                 embeddings_index, enc_output_len, 1, dropout_p=0.1)
 
 if use_cuda:
