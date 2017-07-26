@@ -329,7 +329,10 @@ def tokenizeSentence(sentence, embeddings_index, embeddings_size):
         try:
             var[t] = embeddings_index[tokenized_sentence[t].string]
         except KeyError:
-            print('original word: '+tokenized_sentence[t]+' | string format: '+tokenized_sentence[t].string)
+            print('original word>')
+            print(tokenized_sentence[t])
+            print('string format>')
+            print(tokenized_sentence[t].string))
     # add end of sentence token to all sentences
     var[-1] = embeddings_index['EOS']
     return var
