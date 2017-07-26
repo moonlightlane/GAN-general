@@ -734,8 +734,8 @@ def trainIters(encoder1, encoder2, decoder, embeddings_index,
     print_loss_total = 0  # Reset every print_every
     plot_loss_total = 0  # Reset every plot_every
 
-    encoder_optimizer1 = optim.SGD(encoder.parameters(), lr=learning_rate)
-    encoder_optimizer2 = optim.SGD(encoder.parameters(), lr=learning_rate)
+    encoder_optimizer1 = optim.SGD(encoder1.parameters(), lr=learning_rate)
+    encoder_optimizer2 = optim.SGD(encoder2.parameters(), lr=learning_rate)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
     training_triplets = [variablesFromTriplets(random.choice(triplets))
                       for i in range(n_iters)]
@@ -944,7 +944,8 @@ index2word = {}
 for i in range(0, len(data_tokens)):
     index2word[i] = data_tokens[i]
     word2index[data_tokens[i]] = i
-
+if use_cuda:
+    print('GPU ready.')
 print('')
 print('start training...')
 print('')
