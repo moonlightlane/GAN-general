@@ -186,33 +186,33 @@ print('Found %s word vectors.' % len(embeddings_index))
 
 # get dimension from a random sample in the dict
 embeddings_dim = random.sample( embeddings_index.items(), 1 )[0][1].size(-1)
-SOS_token = torch.zeros(embeddings_dim) # start of sentence token, all zerons
+SOS_token = -torch.ones(embeddings_dim) # start of sentence token, all zerons
 EOS_token = torch.ones(embeddings_dim) # end of sentence token, all ones
 # add special tokens to the embeddings
 embeddings_index['SOS'] = SOS_token
 embeddings_index['EOS'] = EOS_token
 
-# this class now will need to find the mapping from word to its vector through the embedding_index dictionary
-class Lang:
-    def __init__(self, name):
-        self.name = name
-        self.word2index = {}
-        self.word2count = {}
-        self.index2word = {0: "SOS", 1: "EOS"}
-        self.n_words = 2  # Count SOS and EOS
+# # this class now will need to find the mapping from word to its vector through the embedding_index dictionary
+# class Lang:
+#     def __init__(self, name):
+#         self.name = name
+#         self.word2index = {}
+#         self.word2count = {}
+#         self.index2word = {0: "SOS", 1: "EOS"}
+#         self.n_words = 2  # Count SOS and EOS
 
-    def addSentence(self, sentence):
-        for word in sentence.split(' '):
-            self.addWord(word)
+#     def addSentence(self, sentence):
+#         for word in sentence.split(' '):
+#             self.addWord(word)
 
-    def addWord(self, word):
-        if word not in self.word2index:
-            self.word2index[word] = self.n_words
-            self.word2count[word] = 1
-            self.index2word[self.n_words] = word
-            self.n_words += 1
-        else:
-            self.word2count[word] += 1
+#     def addWord(self, word):
+#         if word not in self.word2index:
+#             self.word2index[word] = self.n_words
+#             self.word2count[word] = 1
+#             self.index2word[self.n_words] = word
+#             self.n_words += 1
+#         else:
+#             self.word2count[word] += 1
 
 
 ######################################################################
@@ -370,6 +370,7 @@ def tokenizeSentence(sentence, embeddings_index, embeddings_dim):
     # var[0] = embeddings_index['SOS']
     for t in range(0, token_num):
         var[t] = embeddings_index[str(tokenized_sentence[t])]
+    # add end of sentence token to all sentences
     var[-1] = embeddings_index['EOS']
     return var
 
@@ -450,12 +451,13 @@ class EncoderRNN(nn.Module):
         self.n_layers = n_layers
         self.hidden_size = hidden_size
         self.input_size = input_size
+        self.embeddings_index = embeddings_index
 
         # self.embedding = nn.Embedding(input_size, input_dim)
         self.gru = nn.GRU(input_dim, hidden_size)
 
     def forward(self, input, hidden):
-        embedded = embeddings_index[input].view(1, 1, -1)
+        embedded = self.embeddings_index[input].view(1, 1, -1)
         output = embedded
         for i in range(self.n_layers):
             output, hidden = self.gru(output, hidden)
@@ -563,7 +565,8 @@ class DecoderRNN(nn.Module):
 #
 
 class AttnDecoderRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, embeddings_index, n_layers=1, dropout_p=0.1, enc_output_len):
+    def __init__(self, input_size, hidden_size, output_size, 
+        embeddings_index, n_layers=1, dropout_p=0.1, enc_output_len):
         super(AttnDecoderRNN, self).__init__()
         self.input_size = input_size
         self.enc_output_len = enc_output_len
@@ -571,6 +574,7 @@ class AttnDecoderRNN(nn.Module):
         self.output_size = output_size
         self.n_layers = n_layers
         self.dropout_p = dropout_p
+        self.embeddings_index = embeddings_index
         # self.max_length = max_length
 
         # self.embedding = nn.Embedding(self.output_size, self.input_dim)
@@ -581,7 +585,7 @@ class AttnDecoderRNN(nn.Module):
         self.out = nn.Linear(self.hidden_size, self.output_size)
 
     def forward(self, input, hidden, encoder_output, encoder_outputs):
-        embedded = embeddings_index[input].view(1, 1, -1)
+        embedded = self.embeddings_index[input].view(1, 1, -1)
         # embedded = self.dropout(embedded)
 
         attn_weights = F.softmax(
@@ -653,6 +657,7 @@ def train(context_var, ans_var, question_var, embeddings_index,
     decoder_optimizer, criterion):
     encoder_hidden_context = encoder1.initHidden()
     encoder_hidden_answer = encoder2.initHidden()
+    decoder_hidden = decoder.initHidden()
 
     encoder_optimizer1.zero_grad()
     encoder_optimizer2.zero_grad()
@@ -689,7 +694,7 @@ def train(context_var, ans_var, question_var, embeddings_index,
     decoder_input = Variable(embeddings_index['SOS'])
     decoder_input = decoder_input.cuda() if use_cuda else decoder_input
     
-    decoder_hidden = torch.cat(encoder_hidden_context, encoder_hidden_answer)
+    # decoder_hidden = torch.cat(encoder_hidden_context, encoder_hidden_answer)
 
     use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
 
@@ -698,7 +703,7 @@ def train(context_var, ans_var, question_var, embeddings_index,
         for di in range(target_length):
             decoder_output, decoder_hidden, decoder_attention = decoder(
                 decoder_input, decoder_hidden, encoder_output, encoder_outputs)
-            loss += criterion(decoder_output[0], question_var[di])
+            loss += criterion(decoder_output[0], word2index(question_var[di]))
             decoder_input = question_var[di]  # Teacher forcing
 
     else:
@@ -709,10 +714,10 @@ def train(context_var, ans_var, question_var, embeddings_index,
             topv, topi = decoder_output.data.topk(1)
             ni = topi[0][0]
             
-            decoder_input = Variable(torch.LongTensor([[ni]]))
+            decoder_input = Variable(embeddings_index(ni))
             decoder_input = decoder_input.cuda() if use_cuda else decoder_input
             
-            loss += criterion(decoder_output[0], question_var[di])
+            loss += criterion(decoder_output[0], word2index(question_var[di]))
             if ni == EOS_token:
                 break
 
@@ -791,13 +796,9 @@ def trainIters(encoder1, encoder2, decoder, embeddings_index,
             print_loss_total = 0
             print('%s (%d %d%%) %.4f' % (timeSince(start, iter / n_iters),
                                          iter, iter / n_iters * 100, print_loss_avg))
-            print('---sampled triple---')
+            print('---sample generated question---')
             # sample a triple and print the generated question
-            example = random.sample(triplets)
-            context_example = example[0]
-            answer_example = example[2]
-            question_example = example[1]
-
+            evaluateRandomly(encoder1, encoder2, decoder, triplets, n=1)
             print()
 
         if iter % plot_every == 0:
@@ -841,36 +842,43 @@ def showPlot(points):
 # attention outputs for display later.
 #
 
-def evaluate(encoder1, encoder2, decoder, context, answer):
-    context_var = variableFromSentence(input_lang, context)
-    ans_var = variableFromSentence(input_lang, answer)
+def evaluate(encoder1, encoder2, decoder, triple):
+    triple_var = variablesFromTriplets(triple, embeddings_index, embeddings_dim)
+    context_var = triple_var[0]
+    ans_var = triple_var[2]
     input_length_context = context_var.size()[0]
     input_length_answer = ans_var.size()[0]
     encoder_hidden_context = encoder1.initHidden()
     encoder_hidden_answer = encoder2.initHidden()
+    decoder_hidden = decoder.initHidden()
 
-    encoder_outputs_context = Variable(torch.zeros(max_length, encoder1.hidden_size))
+
+    encoder_outputs_context = Variable(torch.zeros(input_length_context, encoder1.hidden_size))
     encoder_outputs_context = encoder_outputs_context.cuda() if use_cuda else encoder_outputs_context
-	encoder_outputs_answer = Variable(torch.zeros(max_length, encoder2.hidden_size))
+    encoder_outputs_answer = Variable(torch.zeros(input_length_answer, encoder2.hidden_size))
     encoder_outputs_answer = encoder_outputs_answer.cuda() if use_cuda else encoder_outputs_answer
-
+   
     for ei in range(input_length_context):
-        encoder_outputs_context, encoder_hidden_context = encoder1(context_var[ei],
+        encoder_output_context, encoder_hidden_context = encoder1(context_var[ei],
                                                  encoder_hidden_context)
-        encoder_outputs_context[ei] = encoder_outputs_context[ei] + encoder_outputs_context[0][0]
+        encoder_outputs_context[ei] = encoder_outputs_context[ei] + encoder_output_context[0][0]
 
     for ei in range(input_length_answer):
-        encoder_outputs_answer, encoder_hidden_answer = encoder2(ans_var[ei],
+        encoder_output_answer, encoder_hidden_answer = encoder2(ans_var[ei],
                                                  encoder_hidden_answer)
-        encoder_outputs_answer[ei] = encoder_outputs_answer[ei] + encoder_outputs_answer[0][0]
+        encoder_outputs_answer[ei] = encoder_outputs_answer[ei] + encoder_output_answer[0][0]
 
-    decoder_input = Variable(torch.LongTensor([[SOS_token]]))  # SOS
+    encoder_output = torch.cat(encoder_output_context, encoder_output_answer)
+    encoder_outputs = torch.cat(encoder_outputs_context, encoder_outputs_answer)
+
+    # decoder_input = Variable(torch.LongTensor([[SOS_token]]))  # SOS
+    decoder_input = Variable(embeddings_index['SOS'])
     decoder_input = decoder_input.cuda() if use_cuda else decoder_input
 
-    decoder_hidden = torch.cat(encoder_hidden_context, encoder_hidden_answer)
+    # decoder_hidden = torch.cat(encoder_hidden_context, encoder_hidden_answer)
 
     decoded_words = []
-    decoder_attentions = torch.zeros(max_length, max_length)
+    decoder_attentions = torch.zeros(max_length, encoder_outputs.size()[0])
 
     for di in range(max_length):
         decoder_output, decoder_hidden, decoder_attention = decoder(
@@ -882,9 +890,9 @@ def evaluate(encoder1, encoder2, decoder, context, answer):
             decoded_words.append('<EOS>')
             break
         else:
-            decoded_words.append(output_lang.index2word[ni])
+            decoded_words.append(index2word[ni])
         
-        decoder_input = Variable(torch.LongTensor([[ni]]))
+        decoder_input = Variable(embeddings(ni))
         decoder_input = decoder_input.cuda() if use_cuda else decoder_input
 
     return decoded_words, decoder_attentions[:di + 1]
@@ -895,14 +903,15 @@ def evaluate(encoder1, encoder2, decoder, context, answer):
 # input, target, and output to make some subjective quality judgements:
 #
 
-def evaluateRandomly(encoder, decoder, n=10):
+def evaluateRandomly(encoder1, encoder2, decoder, triplets, n=1):
     for i in range(n):
-        pair = random.choice(pairs)
-        print('>', pair[0])
-        print('=', pair[1])
-        output_words, attentions = evaluate(encoder, decoder, pair[0])
+        triple = random.choice(triplets)
+        print('context   > ', pair[0])
+        print('question  > ', pair[1])
+        print('answer    > ', pair[2])
+        output_words, attentions = evaluate(encoder1, encoder2, decoder, triple)
         output_sentence = ' '.join(output_words)
-        print('<', output_sentence)
+        print('generated < ', output_sentence)
         print('')
 
 
