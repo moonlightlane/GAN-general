@@ -185,9 +185,9 @@ f.close()
 print('Found %s word vectors.' % len(embeddings_index))
 
 # get dimension from a random sample in the dict
-embeddings_dim = random.sample( embeddings_index.items(), 1 )[0][1].size(-1)
-SOS_token = -torch.ones(embeddings_dim) # start of sentence token, all zerons
-EOS_token = torch.ones(embeddings_dim) # end of sentence token, all ones
+embeddings_size = random.sample( embeddings_index.items(), 1 )[0][1].size(-1)
+SOS_token = -torch.ones(embeddings_size) # start of sentence token, all zerons
+EOS_token = torch.ones(embeddings_size) # end of sentence token, all ones
 # add special tokens to the embeddings
 embeddings_index['SOS'] = SOS_token
 embeddings_index['EOS'] = EOS_token
@@ -363,10 +363,10 @@ for i in range(0, len(data_tokens)):
 #
 
 
-def tokenizeSentence(sentence, embeddings_index, embeddings_dim):
+def tokenizeSentence(sentence, embeddings_index, embeddings_size):
     tokenized_sentence = spacynlp.tokenizer(sentence)
     token_num = len(tokenized_sentence)
-    var = torch.FloatTensor(token_num+, embeddings_dim)
+    var = torch.FloatTensor(token_num+, embeddings_size)
     # var[0] = embeddings_index['SOS']
     for t in range(0, token_num):
         var[t] = embeddings_index[str(tokenized_sentence[t])]
@@ -385,10 +385,10 @@ def tokenizeSentence(sentence, embeddings_index, embeddings_dim):
 #         return result
 
 
-def variablesFromTriplets(triple, embeddings_index, embeddings_dim):
-    context = tokenizeSentence(triple[0], embeddings_index, embeddings_dim)
-    answer = tokenizeSentence(triple[2], embeddings_index, embeddings_dim)
-    question = tokenizeSentence(triple[1], embeddings_index, embeddings_dim)
+def variablesFromTriplets(triple, embeddings_index, embeddings_size):
+    context = tokenizeSentence(triple[0], embeddings_index, embeddings_size)
+    answer = tokenizeSentence(triple[2], embeddings_index, embeddings_size)
+    question = tokenizeSentence(triple[1], embeddings_index, embeddings_size)
     return (Variable(context), Variable(question), Variable(answer))
 
 
@@ -507,7 +507,7 @@ class DecoderRNN(nn.Module):
         # TODO this following embedding should change. 
         # each embedding is of dimension input_dim defined by external word embedding
         # self.embedding = nn.Embedding(input_size, input_dim)
-        self.gru = nn.GRU(input_dim, hidden_size)
+        self.gru = nn.GRU(input_size, hidden_size)
         self.out = nn.Linear(hidden_size, output_size)
         self.softmax = nn.LogSoftmax()
 
@@ -579,7 +579,7 @@ class AttnDecoderRNN(nn.Module):
 
         # self.embedding = nn.Embedding(self.output_size, self.input_dim)
         self.attn = nn.Linear(self.input_size+self.hidden_size, self.enc_output_len)
-        self.attn_combine = nn.Linear(self.input_size+self.hidden_size, self.input_dim)
+        self.attn_combine = nn.Linear(self.input_size+self.hidden_size, self.input_size)
         self.dropout = nn.Dropout(self.dropout_p)
         self.gru = nn.GRU(self.input_size, self.hidden_size)
         self.out = nn.Linear(self.hidden_size, self.output_size)
@@ -843,7 +843,7 @@ def showPlot(points):
 #
 
 def evaluate(encoder1, encoder2, decoder, triple):
-    triple_var = variablesFromTriplets(triple, embeddings_index, embeddings_dim)
+    triple_var = variablesFromTriplets(triple, embeddings_index, embeddings_size)
     context_var = triple_var[0]
     ans_var = triple_var[2]
     input_length_context = context_var.size()[0]
@@ -937,11 +937,11 @@ def evaluateRandomly(encoder1, encoder2, decoder, triplets, n=1):
 hidden_size1 = 256
 hidden_size2 = 64
 # context encoder
-encoder1 = EncoderRNN(c_lang.n_words, hidden_size1)
+encoder1 = EncoderRNN(embeddings_size, hidden_size1, embeddings_index)
 # answer encoder
-encoder2 = EncoderRNN(a_lang.n_words, hidden_size2)
+encoder2 = EncoderRNN(embeddings_size, hidden_size2, embeddings_index)
 # decoder
-attn_decoder1 = AttnDecoderRNN(hidden_size, q_lang.n_words,
+attn_decoder1 = AttnDecoderRNN(embeddings_size, hidden_size, embeddings_size, embeddings_index,
                                1, dropout_p=0.1)
 
 if use_cuda:
