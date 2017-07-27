@@ -501,13 +501,13 @@ def post_proc_tokenizer(tokenized_sentence):
         else:
             index = -1
             for s in range(0, len(token)):
-                if s >= index:
+                if s > index:
                     if token[s].isdigit():
                         print('find digit')
                         for i in range(s,len(token)):
                             if (not token[i].isdigit()):
                                 proc_tokenized_sentence.append(token[s:i])
-                                index = i
+                                index = i-1
                                 break
                             elif (token[i].isdigit()) and (i == len(token)-1):
                                 proc_tokenized_sentence.append(token[s:i+1])
@@ -518,7 +518,7 @@ def post_proc_tokenizer(tokenized_sentence):
                         for i in range(s,len(token)):
                             if (not token[i].isalpha()):
                                 proc_tokenized_sentence.append(token[s:i])
-                                index = i
+                                index = i-1
                                 break
                             elif (token[i].isalpha()) and (i == len(token)-1):
                                 proc_tokenized_sentence.append(token[s:i+1])
@@ -528,16 +528,17 @@ def post_proc_tokenizer(tokenized_sentence):
                         print('find symbol')
                         proc_tokenized_sentence.append(token[s])
                         index += 1
-                    print(index)
+                    # print(index)
     return proc_tokenized_sentence
 # test
-x = post_proc_tokenizer(spacynlp.tokenizer(u'mid-1960s'))
+# x = post_proc_tokenizer(spacynlp.tokenizer(u'mid-1960s'))
 
 # turns a sentence into individual token and link each to the embedding vector 
 def tokenizeSentence(sentence, embeddings_index, embeddings_size):
     tokenized_sentence = spacynlp.tokenizer(sentence)
     # # an additional preprocessing step to separate words and non-words when they appear together
-    proce_tokenized_sentence = post_proc_tokenizer(tokenized_sentence)
+    proc_tokenized_sentence = post_proc_tokenizer(tokenized_sentence)
+    print(proc_tokenized_sentence)
     # tokenized_sentence = [token.string.strip() for token in tokenized_sentence]
     # for t in range(0, len(tokenized_sentence)):
     token_num = len(proc_tokenized_sentence)
@@ -545,7 +546,7 @@ def tokenizeSentence(sentence, embeddings_index, embeddings_size):
     # var[0] = embeddings_index['SOS']
     for t in range(0, token_num):
         try:
-            var[t] = embeddings_index[tokenized_sentence[t].string.strip()]
+            var[t] = embeddings_index[proc_tokenized_sentence[t]]
         except KeyError:
             # print('original word>')
             # print(tokenized_sentence[t])
