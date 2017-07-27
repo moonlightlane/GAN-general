@@ -113,6 +113,8 @@ class AttnDecoderRNN(nn.Module):
         # because the number of input tokens varies, we move the init of attn to here
         # instead of in __init__ function
         attn = nn.Linear(self.input_size+self.hidden_size, encoder_outputs.size()[0])
+        if use_cuda:
+            attn = attn.cuda()
 
         # embedded = self.embeddings_index[input].view(1, 1, -1)
         embedded = input.view(1,1,-1)
