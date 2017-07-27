@@ -184,9 +184,9 @@ def train(context_var, ans_var, question_var, embeddings_index, word2index,
     encoder_optimizer2.zero_grad()
     decoder_optimizer.zero_grad()
 
-    input_length_context = context_var.size()[0]
-    input_length_answer = ans_var.size()[0]
-    target_length = question_var.size()[0]
+    input_length_context = len(context_var)
+    input_length_answer = len(ans_var)
+    target_length = len(question_var)
     
     encoder_outputs_context = Variable(torch.zeros(input_length_context, encoder1.hidden_size))
     encoder_outputs_context = encoder_outputs_context.cuda() if use_cuda else encoder_outputs_context
@@ -564,12 +564,13 @@ def tokenizeSentence(sentence):
     # for t in range(0, len(tokenized_sentence)):
     token_num = len(proc_tokenized_sentence)
     # var = torch.FloatTensor(token_num+1, embeddings_size) #add one dimension for EOS
-    var = torch.FloatTensor(token_num+1)
+    # var = torch.FloatTensor(token_num+1)
+    var = []
     # var[0] = embeddings_index['SOS']
     for t in range(0, token_num):
         try:
             # var[t] = word2index[proc_tokenized_sentence[t]]
-            var[t] = proc_tokenized_sentence[t]
+            var.append(proc_tokenized_sentence[t])
         except KeyError:
             # print('original word>')
             # print(tokenized_sentence[t])
@@ -579,10 +580,10 @@ def tokenizeSentence(sentence):
             # print('-------------------------------------')
             # print('-------------------------------------')
             # var[t] = word2index['UNK']
-            var[t] = 'UNK'
+            var.append('UNK')
     # add end of sentence token to all sentences
     # var[-1] = word2index['EOS']
-    var[-1] = 'EOS'
+    var.append('EOS')
     return var
 
 
