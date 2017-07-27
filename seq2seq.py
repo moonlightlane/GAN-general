@@ -703,7 +703,7 @@ if use_cuda:
 ######### start training
 trainIters(encoder1, encoder2, attn_decoder1, embeddings_index, word2index,
             path_to_loss_f, path_to_sample_out_f, path_to_exp_out,
-            75000, print_every=5000)
+            75000, print_every=10)
 
 # save the final model
 torch.save(encoder1, path_to_exp_out+'/encoder1.pth')
