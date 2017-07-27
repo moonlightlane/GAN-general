@@ -568,18 +568,10 @@ def tokenizeSentence(sentence, embeddings_index):
     var = []
     # var[0] = embeddings_index['SOS']
     for t in range(0, token_num):
-        try:
+        if proc_tokenized_sentence[t] in embeddings_index.keys():
             # var[t] = word2index[proc_tokenized_sentence[t]]
             var.append(proc_tokenized_sentence[t])
-            temp = embeddings_index[proc_tokenized_sentence[t]]
-        except KeyError:
-            # print('original word>')
-            # print(tokenized_sentence[t])
-            # print('string format>')
-            # print(tokenized_sentence[t].string)
-            # print(sentence)
-            # print('-------------------------------------')
-            # print('-------------------------------------')
+        else:
             # var[t] = word2index['UNK']
             var.append('UNK')
     # add end of sentence token to all sentences
