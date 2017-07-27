@@ -70,8 +70,9 @@ class EncoderRNN(nn.Module):
         # self.embedding = nn.Embedding(input_size, input_dim)
         self.gru = nn.GRU(input_size, hidden_size)
 
-    def forward(self, input, hidden):
-        # embedded = Variable(embeddings_index[input].view(1, 1, -1))
+    def forward(self, input, hidden, embeddings_index):
+        # input is a word token
+        embedded = Variable(embeddings_index[input].view(1, 1, -1))
         embedded = input.view(1,1,-1)
         if use_cuda:
             embedded = embedded.cuda()
@@ -108,7 +109,7 @@ class AttnDecoderRNN(nn.Module):
         self.gru = nn.GRU(self.input_size, self.hidden_size)
         self.out = nn.Linear(self.hidden_size, self.output_size)
 
-    def forward(self, input, hidden, encoder_output, encoder_outputs):
+    def forward(self, input, hidden, encoder_output, encoder_outputs, embeddings_index):
 
         # because the number of input tokens varies, we move the init of attn to here
         # instead of in __init__ function
@@ -116,7 +117,7 @@ class AttnDecoderRNN(nn.Module):
         if use_cuda:
             attn = attn.cuda()
 
-        # embedded = self.embeddings_index[input].view(1, 1, -1)
+        embedded = self.embeddings_index[input].view(1, 1, -1)
         embedded = input.view(1,1,-1)
         if use_cuda:
             embedded = embedded.cuda()
@@ -172,7 +173,7 @@ class AttnDecoderRNN(nn.Module):
 teacher_forcing_ratio = 1 # default in original code is 0.5
 
 # context = input_variable
-def train(context_var, ans_var, question_var, embeddings_index,
+def train(context_var, ans_var, question_var, embeddings_index, word2index,
     encoder1, encoder2, decoder, encoder_optimizer1, encoder_optimizer2, 
     decoder_optimizer, criterion):
     encoder_hidden_context = encoder1.initHidden()
@@ -198,12 +199,12 @@ def train(context_var, ans_var, question_var, embeddings_index,
     # context encoding
     for ei in range(input_length_context):
     	encoder_output_context, encoder_hidden_context = encoder1(
-        	context_var[ei], encoder_hidden_context)
+        	context_var[ei], encoder_hidden_context, embeddings_index)
     	encoder_outputs_context[ei] = encoder_output_context[0][0]
     # answer encoding
     for ei in range(input_length_answer):
         encoder_output_answer, encoder_hidden_answer = encoder2(
-            ans_var[ei], encoder_hidden_answer)
+            ans_var[ei], encoder_hidden_answer, embeddings_index)
         encoder_outputs_answer[ei] = encoder_output_answer[0][0]
     # concat the context encoding and answer encoding
     encoder_output = torch.cat((encoder_output_context, encoder_output_answer),1)
@@ -226,15 +227,16 @@ def train(context_var, ans_var, question_var, embeddings_index,
         # Teacher forcing: Feed the target as the next input
         for di in range(target_length):
             decoder_output, decoder_hidden, decoder_attention = decoder(
-                decoder_input, decoder_hidden, encoder_output, encoder_outputs)
+                decoder_input, decoder_hidden, encoder_output, encoder_outputs, embeddings_index)
             loss += criterion(decoder_output[0], word2index(question_var[di]))
-            decoder_input = question_var[di]  # Teacher forcing
+            decoder_input = Variable(embeddings_index(question_var[di]))  # Teacher forcing
+            decoder_input = decoder_input.cuda() if use_cuda else decoder_input
 
     else:
         # Without teacher forcing: use its own predictions as the next input
         for di in range(target_length):
             decoder_output, decoder_hidden, decoder_attention = decoder(
-                decoder_input, decoder_hidden, encoder_output, encoder_outputs)
+                decoder_input, decoder_hidden, encoder_output, encoder_outputs, embeddings_index)
             topv, topi = decoder_output.data.topk(1)
             ni = topi[0][0]
             
@@ -287,7 +289,7 @@ def timeSince(since, percent):
 # of examples, time so far, estimated time) and average loss.
 #
 
-def trainIters(encoder1, encoder2, decoder, embeddings_index, 
+def trainIters(encoder1, encoder2, decoder, embeddings_index, word2index,
     path_to_loss_f, path_to_sample_out_f, path_to_exp_out,
     n_iters, print_every=1000, plot_every=100, learning_rate=0.01):
 
@@ -314,7 +316,7 @@ def trainIters(encoder1, encoder2, decoder, embeddings_index,
         ans_var = training_triple[2]
         question_var = training_triple[1]
  
-        loss = train(context_var, ans_var, question_var, embeddings_index,
+        loss = train(context_var, ans_var, question_var, embeddings_index, word2index,
                      encoder1, encoder2, decoder, encoder_optimizer1, encoder_optimizer2, 
                      decoder_optimizer, criterion)
         print_loss_total += loss
@@ -374,7 +376,7 @@ def showPlot(points):
 #
 
 def evaluate(encoder1, encoder2, decoder, triple):
-    triple_var = variablesFromTriplets(triple, embeddings_index, embeddings_size)
+    triple_var = variablesFromTriplets(triple)
     context_var = triple_var[0]
     ans_var = triple_var[2]
     input_length_context = context_var.size()[0]
@@ -391,12 +393,12 @@ def evaluate(encoder1, encoder2, decoder, triple):
    
     for ei in range(input_length_context):
         encoder_output_context, encoder_hidden_context = encoder1(context_var[ei],
-                                                 encoder_hidden_context)
+                                                 encoder_hidden_context, embeddings_index)
         encoder_outputs_context[ei] = encoder_outputs_context[ei] + encoder_output_context[0][0]
 
     for ei in range(input_length_answer):
         encoder_output_answer, encoder_hidden_answer = encoder2(ans_var[ei],
-                                                 encoder_hidden_answer)
+                                                 encoder_hidden_answer, embeddings_index)
         encoder_outputs_answer[ei] = encoder_outputs_answer[ei] + encoder_output_answer[0][0]
 
     encoder_output = torch.cat((encoder_output_context, encoder_output_answer))
@@ -413,7 +415,7 @@ def evaluate(encoder1, encoder2, decoder, triple):
 
     for di in range(max_length):
         decoder_output, decoder_hidden, decoder_attention = decoder(
-            decoder_input, decoder_hidden, encoder_output, encoder_outputs)
+            decoder_input, decoder_hidden, encoder_output, encoder_outputs, embeddings_index)
         decoder_attentions[di] = decoder_attention.data
         topv, topi = decoder_output.data.topk(1)
         ni = topi[0][0]
@@ -553,8 +555,8 @@ def post_proc_tokenizer(tokenized_sentence):
 # test
 # x = post_proc_tokenizer(spacynlp.tokenizer(u'mid-1960s'))
 
-# turns a sentence into individual token and link each to the embedding vector 
-def tokenizeSentence(sentence, embeddings_index, embeddings_size):
+# turns a sentence into individual tokens
+def tokenizeSentence(sentence):
     tokenized_sentence = spacynlp.tokenizer(sentence)
     # # an additional preprocessing step to separate words and non-words when they appear together
     proc_tokenized_sentence = post_proc_tokenizer(tokenized_sentence)
@@ -562,11 +564,13 @@ def tokenizeSentence(sentence, embeddings_index, embeddings_size):
     # tokenized_sentence = [token.string.strip() for token in tokenized_sentence]
     # for t in range(0, len(tokenized_sentence)):
     token_num = len(proc_tokenized_sentence)
-    var = torch.FloatTensor(token_num+1, embeddings_size) #add one dimension for EOS
+    # var = torch.FloatTensor(token_num+1, embeddings_size) #add one dimension for EOS
+    var = torch.FloatTensor(token_num+1)
     # var[0] = embeddings_index['SOS']
     for t in range(0, token_num):
         try:
-            var[t] = embeddings_index[proc_tokenized_sentence[t]]
+            # var[t] = word2index[proc_tokenized_sentence[t]]
+            var[t] = proc_tokenized_sentence[t]
         except KeyError:
             # print('original word>')
             # print(tokenized_sentence[t])
@@ -575,18 +579,21 @@ def tokenizeSentence(sentence, embeddings_index, embeddings_size):
             # print(sentence)
             # print('-------------------------------------')
             # print('-------------------------------------')
-            var[t] = embeddings_index['UNK']
+            # var[t] = word2index['UNK']
+            var[t] = 'UNK'
     # add end of sentence token to all sentences
-    var[-1] = embeddings_index['EOS']
+    # var[-1] = word2index['EOS']
+    var[-1] = 'EOS'
     return var
 
 
 # change these to pytorch variables to prepare as input to the model
-def variablesFromTriplets(triple, embeddings_index, embeddings_size):
-    context = tokenizeSentence(triple[0], embeddings_index, embeddings_size)
-    answer = tokenizeSentence(triple[2], embeddings_index, embeddings_size)
-    question = tokenizeSentence(triple[1], embeddings_index, embeddings_size)
-    return (Variable(context), Variable(question), Variable(answer))
+# each context, question, answer is a list of indices
+def variablesFromTriplets(triple):
+    context = tokenizeSentence(triple[0])
+    answer = tokenizeSentence(triple[2])
+    question = tokenizeSentence(triple[1])
+    return (context, question, answer)
 
 
 
