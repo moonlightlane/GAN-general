@@ -206,8 +206,8 @@ def train(context_var, ans_var, question_var, embeddings_index,
         encoder_outputs_answer[ei] = encoder_output_answer[0][0]
 
     # concat the context encoding and answer encoding
-    encoder_output = torch.cat(encoder_output_context, encoder_output_answer)
-    encoder_outputs = torch.cat(encoder_outputs_context, encoder_outputs_answer)
+    encoder_output = torch.cat((encoder_output_context, encoder_output_answer),1)
+    encoder_outputs = torch.cat((encoder_outputs_context, encoder_outputs_answer),0)
 
     decoder_input = Variable(embeddings_index['SOS'])
     decoder_input = decoder_input.cuda() if use_cuda else decoder_input
@@ -393,8 +393,8 @@ def evaluate(encoder1, encoder2, decoder, triple):
                                                  encoder_hidden_answer)
         encoder_outputs_answer[ei] = encoder_outputs_answer[ei] + encoder_output_answer[0][0]
 
-    encoder_output = torch.cat(encoder_output_context, encoder_output_answer)
-    encoder_outputs = torch.cat(encoder_outputs_context, encoder_outputs_answer)
+    encoder_output = torch.cat((encoder_output_context, encoder_output_answer))
+    encoder_outputs = torch.cat((encoder_outputs_context, encoder_outputs_answer))
 
     # decoder_input = Variable(torch.LongTensor([[SOS_token]]))  # SOS
     decoder_input = Variable(embeddings_index['SOS'])
