@@ -305,8 +305,7 @@ def trainIters(encoder1, encoder2, decoder, embeddings_index, word2index,
     encoder_optimizer1 = optim.SGD(encoder1.parameters(), lr=learning_rate)
     encoder_optimizer2 = optim.SGD(encoder2.parameters(), lr=learning_rate)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
-    training_triplets = [variablesFromTriplets(random.choice(triplets), 
-                                                embeddings_index, embeddings_size)
+    training_triplets = [variablesFromTriplets(random.choice(triplets))
                         for i in range(n_iters)]
     criterion = nn.NLLLoss()
 
