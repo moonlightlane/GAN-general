@@ -677,12 +677,12 @@ print('')
 hidden_size1 = 256
 hidden_size2 = 64
 # context encoder
-encoder1 = EncoderRNN(embeddings_size, hidden_size1, embeddings_index)
+encoder1 = EncoderRNN(embeddings_size, hidden_size1)
 # answer encoder
-encoder2 = EncoderRNN(embeddings_size, hidden_size2, embeddings_index)
+encoder2 = EncoderRNN(embeddings_size, hidden_size2)
 # decoder
 attn_decoder1 = AttnDecoderRNN(embeddings_size, hidden_size1, embeddings_size, 
-                                embeddings_index, 1, dropout_p=0.1)
+                                1, dropout_p=0.1)
 
 if use_cuda:
     encoder1 = encoder1.cuda()
