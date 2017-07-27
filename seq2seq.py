@@ -3,91 +3,23 @@
 # NOTE: this is NOT tensorflow. This is PyTorch implementation, standalone of GAN.
 
 """
-Translation with a Sequence to Sequence Network and Attention
-*************************************************************
-**Author**: `Sean Robertson <https://github.com/spro/practical-pytorch>`_
+question generation model
 
-In this project we will be teaching a neural network to translate from
-French to English.
+code adapted from <https://github.com/spro/practical-pytorch>`_
 
-::
+made use of seq2seq learning <http://arxiv.org/abs/1409.3215>
+and attention mechanism <https://arxiv.org/abs/1409.0473>
 
-    [KEY: > input, = target, < output]
+input: a paragraph (aka context), and an answer, both represented by a sequence of tokens
+output: a question, represented by a sequence of tokens
 
-    > il est en train de peindre un tableau .
-    = he is painting a picture .
-    < he is painting a picture .
-
-    > pourquoi ne pas essayer ce vin delicieux ?
-    = why not try that delicious wine ?
-    < why not try that delicious wine ?
-
-    > elle n est pas poete mais romanciere .
-    = she is not a poet but a novelist .
-    < she not not a poet but a novelist .
-
-    > vous etes trop maigre .
-    = you re too skinny .
-    < you re all alone .
-
-... to varying degrees of success.
-
-This is made possible by the simple but powerful idea of the `sequence
-to sequence network <http://arxiv.org/abs/1409.3215>`__, in which two
-recurrent neural networks work together to transform one sequence to
-another. An encoder network condenses an input sequence into a vector,
-and a decoder network unfolds that vector into a new sequence.
-
-.. figure:: /_static/img/seq-seq-images/seq2seq.png
-   :alt: 
-
-To improve upon this model we'll use an `attention
-mechanism <https://arxiv.org/abs/1409.0473>`__, which lets the decoder
-learn to focus over a specific range of the input sequence.
-
-**Recommended Reading:**
-
-I assume you have at least installed PyTorch, know Python, and
-understand Tensors:
-
--  http://pytorch.org/ For installation instructions
--  :doc:`/beginner/deep_learning_60min_blitz` to get started with PyTorch in general
--  :doc:`/beginner/pytorch_with_examples` for a wide and deep overview
--  :doc:`/beginner/former_torchies_tutorial` if you are former Lua Torch user
-
-
-It would also be useful to know about Sequence to Sequence networks and
-how they work:
-
--  `Learning Phrase Representations using RNN Encoder-Decoder for
-   Statistical Machine Translation <http://arxiv.org/abs/1406.1078>`__
--  `Sequence to Sequence Learning with Neural
-   Networks <http://arxiv.org/abs/1409.3215>`__
--  `Neural Machine Translation by Jointly Learning to Align and
-   Translate <https://arxiv.org/abs/1409.0473>`__
--  `A Neural Conversational Model <http://arxiv.org/abs/1506.05869>`__
-
-You will also find the previous tutorials on
-:doc:`/intermediate/char_rnn_classification_tutorial`
-and :doc:`/intermediate/char_rnn_generation_tutorial`
-helpful as those concepts are very similar to the Encoder and Decoder
-models, respectively.
-
-And for more, read the papers that introduced these topics:
-
--  `Learning Phrase Representations using RNN Encoder-Decoder for
-   Statistical Machine Translation <http://arxiv.org/abs/1406.1078>`__
--  `Sequence to Sequence Learning with Neural
-   Networks <http://arxiv.org/abs/1409.3215>`__
--  `Neural Machine Translation by Jointly Learning to Align and
-   Translate <https://arxiv.org/abs/1409.0473>`__
--  `A Neural Conversational Model <http://arxiv.org/abs/1506.05869>`__
-
-**Requirements**
 """
 
-
-
+#-----------------------------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------------------------#
+# requirements
+#-----------------------------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------------------------#
 from __future__ import unicode_literals, print_function, division
 from io import open
 import unicodedata
@@ -105,8 +37,6 @@ from torch.autograd import Variable
 from torch import optim
 import torch.nn.functional as F
 
-# MODIFIED from original code
-# the following imports are for reading SQuAD json files
 import nltk
 import json
 import numpy as np
@@ -114,307 +44,20 @@ import os
 
 use_cuda = torch.cuda.is_available()
 
-######################################################################
-# Loading data files
-# ==================
-#
-# The data for this project is a set of many thousands of English to
-# French translation pairs.
-#
-# `This question on Open Data Stack
-# Exchange <http://opendata.stackexchange.com/questions/3888/dataset-of-sentences-translated-into-many-languages>`__
-# pointed me to the open translation site http://tatoeba.org/ which has
-# downloads available at http://tatoeba.org/eng/downloads - and better
-# yet, someone did the extra work of splitting language pairs into
-# individual text files here: http://www.manythings.org/anki/
-#
-# The English to French pairs are too big to include in the repo, so
-# download to ``data/eng-fra.txt`` before continuing. The file is a tab
-# separated list of translation pairs:
-#
-# ::
-#
-#     I am cold.    Je suis froid.
-#
-# .. Note::
-#    Download the data from
-#    `here <https://download.pytorch.org/tutorial/data.zip>`_
-#    and extract it to the current directory.
-
-######################################################################
-# Similar to the character encoding used in the character-level RNN
-# tutorials, we will be representing each word in a language as a one-hot
-# vector, or giant vector of zeros except for a single one (at the index
-# of the word). Compared to the dozens of characters that might exist in a
-# language, there are many many more words, so the encoding vector is much
-# larger. We will however cheat a bit and trim the data to only use a few
-# thousand words per language.
-#
-# .. figure:: /_static/img/seq-seq-images/word-encoding.png
-#    :alt:
-#
-#
-
-
-######################################################################
-# We'll need a unique index per word to use as the inputs and targets of
-# the networks later. To keep track of all this we will use a helper class
-# called ``Lang`` which has word → index (``word2index``) and index → word
-# (``index2word``) dictionaries, as well as a count of each word
-# ``word2count`` to use to later replace rare words.
-#
-
-
-# # this class now will need to find the mapping from word to its vector through the embedding_index dictionary
-# class Lang:
-#     def __init__(self, name):
-#         self.name = name
-#         self.word2index = {}
-#         self.word2count = {}
-#         self.index2word = {0: "SOS", 1: "EOS"}
-#         self.n_words = 2  # Count SOS and EOS
-
-#     def addSentence(self, sentence):
-#         for word in sentence.split(' '):
-#             self.addWord(word)
-
-#     def addWord(self, word):
-#         if word not in self.word2index:
-#             self.word2index[word] = self.n_words
-#             self.word2count[word] = 1
-#             self.index2word[self.n_words] = word
-#             self.n_words += 1
-#         else:
-#             self.word2count[word] += 1
-
-
-######################################################################
-# The files are all in Unicode, to simplify we will turn Unicode
-# characters to ASCII, make everything lowercase
-#
-
-# Turn a Unicode string to plain ASCII, thanks to
-# http://stackoverflow.com/a/518232/2809427
-def unicodeToAscii(s):
-    return ''.join(
-        c for c in unicodedata.normalize('NFD', s)
-        if unicodedata.category(c) != 'Mn'
-    )
-
-# Lowercase, trim, and remove non-letter characters
-
-
-def normalizeString(s):
-    s = unicodeToAscii(s.lower().strip())
-    # s = re.sub(r"([.!?])", r" \1", s)
-    # s = re.sub(r"[^a-zA-Z.!?]+", r" ", s)
-    return s
-
-
-######################################################################
-# MODIFIED from original code
-# read data specific for SQUAD dataset
-
-def readSQuAD(path_to_data):
-    # output (context, question, answer) triplets
-    print("Reading dataset...")
-    triplets = []
-    with open(path_to_data) as f:
-        train = json.load(f)
-        train = train['data']
-        for s in range(0, len(train)):
-            samples = train[s]['paragraphs']
-            for p in range(0, len(samples)):
-                context = samples[p]['context']
-                # turn from unicode to ascii and lower case everything
-                context = normalizeString(context)
-                qas = samples[p]['qas']
-                for i in range(0, len(qas)):
-                # print('current s,p,i are: ' + str(s)+str(p)+str(i))
-                    answers = qas[i]['answers']
-                    question = qas[i]['question']
-                    # turn from unicode to ascii and lower case everything
-                    question = normalizeString(question)
-                    for a in range(0, len(answers)):
-                        ans_text = answers[a]['text']
-                        # turn from unicode to ascii and lower case everything
-                        ans_text = normalizeString(ans_text)
-                        triplets.append((context, question, ans_text))
-    # c_lang = Lang(lang1)
-	# q_lang = Lang(lang2)
-	# a_lang = Lang(lang3)
-	# all_lang = Lang(lang4)
-    return triplets
-
-
-######################################################################
-# Since there are a *lot* of example sentences and we want to train
-# something quickly, we'll trim the data set to only relatively short and
-# simple sentences. Here the maximum length is 10 words (that includes
-# ending punctuation) and we're filtering to sentences that translate to
-# the form "I am" or "He is" etc. (accounting for apostrophes replaced
-# earlier).
-#
-
-# MODIFIED: in our case we will NOT do the filtering
-# longest sequence in context in dataset is 653, so just set max_len to be 1000
-
-# MAX_LENGTH = 1000
-
-# # eng_prefixes = (
-# #     "i am ", "i m ",
-# #     "he is", "he s ",
-# #     "she is", "she s",
-# #     "you are", "you re ",
-# #     "we are", "we re ",
-# #     "they are", "they re "
-# # )
-
-
-# def filterTriple(p):
-#     return len(p[0].split(' ')) < MAX_LENGTH and \
-#         len(p[1].split(' ')) < MAX_LENGTH #and \
-#         # p[1].startswith(eng_prefixes)
-
-
-# def filterTriplets(triplets):
-#     return [triple for triple in triplets if filterTriple(triple)]
-
-
-######################################################################
-# The full process for preparing the data is:
-#
-# -  (Read dataset) <-- MODIFIED
-# -  Normalize text, (filter by length and content) <-- MODIFIED: no this step
-# -  Make word lists from sentences in pairs
-#
-
-# def prepareData(path_to_data, lang1, lang2, lang3, lang4):
-#     c_lang, q_lang, a_lang, all_lang, triplets = readLangs(path_to_data, lang1, lang2, lang3, lang4)
-#     print("Read %s (context, question, answer) triplets" % len(triplets))
-#     # MODIFIED: commented out the following lines because we DO NOT do any filtering
-#     # pairs = filterPairs(pairs)
-#     # print("Trimmed to %s sentence pairs" % len(pairs))
-#     print("Counting words...")
-#     for triple in triplets:
-#         c_lang.addSentence(triple[0]) # this is more a paragraph (multiple sentences) rather than a single sentence
-#         q_lang.addSentence(triple[1])
-#         a_lang.addSentence(triple[2])
-#         all_lang.addSentence(triple[0] + ' ' +triple[2]) # only add context and question together because answer is a subset of context
-#     print("Counted words in dataset (all questions + all contexts):")
-#     print(all_lang.name, all_lang.n_words)
-#     return c_lang, q_lang, a_lang, all_lang, triplets
-
-# c_lang, q_lang, a_lang, all_lang, triplets = prepareData(path_to_data, 'context', 'question', 'answer', 'all')
-# print(random.choice(triplets))
-
-
-#
-# Preparing Training Data
-# -----------------------
-#
-# To train, for each pair we will need an input tensor (indexes of the
-# words in the input sentence) and target tensor (indexes of the words in
-# the target sentence). While creating these vectors we will append the
-# EOS token to both sequences.
-#
-
-
-def tokenizeSentence(sentence, embeddings_index, embeddings_size):
-    tokenized_sentence = spacynlp.tokenizer(sentence)
-    # # an additional preprocessing step to separate words and non-words when they appear together
-    # tokenized_sentence = [token.string.strip() for token in tokenized_sentence]
-    # for t in range(0, len(tokenized_sentence)):
-
-    token_num = len(tokenized_sentence)
-    var = torch.FloatTensor(token_num+1, embeddings_size) #add one dimension for EOS
-    # var[0] = embeddings_index['SOS']
-    for t in range(0, token_num):
-        try:
-            var[t] = embeddings_index[tokenized_sentence[t].string.strip()]
-        except KeyError:
-            # print('original word>')
-            # print(tokenized_sentence[t])
-            # print('string format>')
-            # print(tokenized_sentence[t].string)
-            # print(sentence)
-            # print('-------------------------------------')
-            # print('-------------------------------------')
-            var[t] = embeddings_index['UNK']
-    # add end of sentence token to all sentences
-    var[-1] = embeddings_index['EOS']
-    return var
-
-
-# def variableFromSentence(sentence, embeddings_index):
-#     # indexes = indexesFromSentence(lang, sentence)
-#     # indexes.append(EOS_token)
-#     result = Variable(torch.LongTensor(indexes).view(-1, 1))
-#     if use_cuda:
-#         return result.cuda()
-#     else:
-#         return result
-
-
-def variablesFromTriplets(triple, embeddings_index, embeddings_size):
-    context = tokenizeSentence(triple[0], embeddings_index, embeddings_size)
-    answer = tokenizeSentence(triple[2], embeddings_index, embeddings_size)
-    question = tokenizeSentence(triple[1], embeddings_index, embeddings_size)
-    return (Variable(context), Variable(question), Variable(answer))
 
 
 
 
-######################################################################
-# The Seq2Seq Model
-# =================
-#
-# A Recurrent Neural Network, or RNN, is a network that operates on a
-# sequence and uses its own output as input for subsequent steps.
-#
-# A `Sequence to Sequence network <http://arxiv.org/abs/1409.3215>`__, or
-# seq2seq network, or `Encoder Decoder
-# network <https://arxiv.org/pdf/1406.1078v3.pdf>`__, is a model
-# consisting of two RNNs called the encoder and decoder. The encoder reads
-# an input sequence and outputs a single vector, and the decoder reads
-# that vector to produce an output sequence.
-#
-# .. figure:: /_static/img/seq-seq-images/seq2seq.png
-#    :alt:
-#
-# Unlike sequence prediction with a single RNN, where every input
-# corresponds to an output, the seq2seq model frees us from sequence
-# length and order, which makes it ideal for translation between two
-# languages.
-#
-# Consider the sentence "Je ne suis pas le chat noir" → "I am not the
-# black cat". Most of the words in the input sentence have a direct
-# translation in the output sentence, but are in slightly different
-# orders, e.g. "chat noir" and "black cat". Because of the "ne/pas"
-# construction there is also one more word in the input sentence. It would
-# be difficult to produce a correct translation directly from the sequence
-# of input words.
-#
-# With a seq2seq model the encoder creates a single vector which, in the
-# ideal case, encodes the "meaning" of the input sequence into a single
-# vector — a single point in some N dimensional space of sentences.
-#
+#-----------------------------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------------------------#
+# the model
+#-----------------------------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------------------------#
 
 
 ######################################################################
 # The Encoder
 # -----------
-#
-# The encoder of a seq2seq network is a RNN that outputs some value for
-# every word from the input sentence. For every input word the encoder
-# outputs a vector and a hidden state, and uses the hidden state for the
-# next input word.
-#
-# .. figure:: /_static/img/seq-seq-images/encoder-network.png
-#    :alt:
-#
-#
-
 class EncoderRNN(nn.Module):
 	# output is the same dimension as input (dimension defined by externalword embedding model)
     def __init__(self, input_size, hidden_size, embeddings_index, n_layers=1):
@@ -441,114 +84,21 @@ class EncoderRNN(nn.Module):
         else:
             return result
 
-######################################################################
-# The Decoder
-# -----------
-#
-# The decoder is another RNN that takes the encoder output vector(s) and
-# outputs a sequence of words to create the translation.
-#
-
-
-######################################################################
-# Simple Decoder
-# ^^^^^^^^^^^^^^
-#
-# In the simplest seq2seq decoder we use only last output of the encoder.
-# This last output is sometimes called the *context vector* as it encodes
-# context from the entire sequence. This context vector is used as the
-# initial hidden state of the decoder.
-#
-# At every step of decoding, the decoder is given an input token and
-# hidden state. The initial input token is the start-of-string ``<SOS>``
-# token, and the first hidden state is the context vector (the encoder's
-# last hidden state).
-#
-# .. figure:: /_static/img/seq-seq-images/decoder-network.png
-#    :alt:
-#
-#
-
-class DecoderRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, n_layers=1):
-        super(DecoderRNN, self).__init__()
-        self.n_layers = n_layers
-        self.hidden_size = hidden_size
-        self.input_size = input_size
-        # TODO this following embedding should change. 
-        # each embedding is of dimension input_dim defined by external word embedding
-        # self.embedding = nn.Embedding(input_size, input_dim)
-        self.gru = nn.GRU(input_size, hidden_size)
-        self.out = nn.Linear(hidden_size, output_size)
-        self.softmax = nn.LogSoftmax()
-
-    def forward(self, input, hidden):
-        output = embeddings_index[input].view(1, 1, -1)
-        for i in range(self.n_layers):
-            output = F.relu(output)
-            output, hidden = self.gru(output, hidden)
-        output = self.softmax(self.out(output[0]))
-        return output, hidden
-
-    def initHidden(self):
-        result = Variable(torch.zeros(1, 1, self.hidden_size))
-        if use_cuda:
-            return result.cuda()
-        else:
-            return result
-
-######################################################################
-# I encourage you to train and observe the results of this model, but to
-# save space we'll be going straight for the gold and introducing the
-# Attention Mechanism.
-#
-
 
 ######################################################################
 # Attention Decoder
 # ^^^^^^^^^^^^^^^^^
-#
-# If only the context vector is passed betweeen the encoder and decoder,
-# that single vector carries the burden of encoding the entire sentence.
-#
-# Attention allows the decoder network to "focus" on a different part of
-# the encoder's outputs for every step of the decoder's own outputs. First
-# we calculate a set of *attention weights*. These will be multiplied by
-# the encoder output vectors to create a weighted combination. The result
-# (called ``attn_applied`` in the code) should contain information about
-# that specific part of the input sequence, and thus help the decoder
-# choose the right output words.
-#
-# .. figure:: https://i.imgur.com/1152PYf.png
-#    :alt:
-#
-# Calculating the attention weights is done with another feed-forward
-# layer ``attn``, using the decoder's input and hidden state as inputs.
-# Because there are sentences of all sizes in the training data, to
-# actually create and train this layer we have to choose a maximum
-# sentence length (input length, for encoder outputs) that it can apply
-# to. Sentences of the maximum length will use all the attention weights,
-# while shorter sentences will only use the first few.
-#
-# .. figure:: /_static/img/seq-seq-images/attention-decoder-network.png
-#    :alt:
-#
-#
-
 class AttnDecoderRNN(nn.Module):
     def __init__(self, input_size, hidden_size, output_size, 
         embeddings_index, n_layers=1, dropout_p=0.1):
         super(AttnDecoderRNN, self).__init__()
         self.input_size = input_size
-        # self.enc_output_len = enc_output_len
         self.hidden_size = hidden_size
         self.output_size = output_size
         self.n_layers = n_layers
         self.dropout_p = dropout_p
         self.embeddings_index = embeddings_index
-        # self.max_length = max_length
 
-        # self.embedding = nn.Embedding(self.output_size, self.input_dim)
         # self.attn = nn.Linear(self.input_size+self.hidden_size, self.enc_output_len)
         self.attn_combine = nn.Linear(self.input_size+self.hidden_size, self.input_size)
         self.dropout = nn.Dropout(self.dropout_p)
@@ -587,21 +137,19 @@ class AttnDecoderRNN(nn.Module):
             return result
 
 
-######################################################################
-# .. note:: There are other forms of attention that work around the length
-#   limitation by using a relative position approach. Read about "local
-#   attention" in `Effective Approaches to Attention-based Neural Machine
-#   Translation <https://arxiv.org/abs/1508.04025>`__.
-#
-# Training
-# ========
 
+
+
+#-----------------------------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------------------------#
+# training and evaluation
+#-----------------------------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------------------------#
 
 
 ######################################################################
 # Training the Model
 # ------------------
-#
 # To train we run the input sentence through the encoder, and keep track
 # of every output and the latest hidden state. Then the decoder is given
 # the ``<SOS>`` token as its first input, and the last hidden state of the
@@ -611,19 +159,7 @@ class AttnDecoderRNN(nn.Module):
 # each next input, instead of using the decoder's guess as the next input.
 # Using teacher forcing causes it to converge faster but `when the trained
 # network is exploited, it may exhibit
-# instability <http://minds.jacobs-university.de/sites/default/files/uploads/papers/ESNTutorialRev.pdf>`__.
-#
-# You can observe outputs of teacher-forced networks that read with
-# coherent grammar but wander far from the correct translation -
-# intuitively it has learned to represent the output grammar and can "pick
-# up" the meaning once the teacher tells it the first few words, but it
-# has not properly learned how to create the sentence from the translation
-# in the first place.
-#
-# Because of the freedom PyTorch's autograd gives us, we can randomly
-# choose to use teacher forcing or not with a simple if statement. Turn
-# ``teacher_forcing_ratio`` up to use more of it.
-#
+# instability 
 
 teacher_forcing_ratio = 0.5
 
@@ -714,12 +250,10 @@ def train(context_var, ans_var, question_var, embeddings_index,
 import time
 import math
 
-
 def asMinutes(s):
     m = math.floor(s / 60)
     s -= m * 60
     return '%dm %ds' % (m, s)
-
 
 def timeSince(since, percent):
     now = time.time()
@@ -892,24 +426,112 @@ def evaluateRandomly(encoder1, encoder2, decoder, triplets, n=1):
         print('')
 
 
+
+
+
+#-----------------------------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------------------------#
+# data loading helper functions
+#-----------------------------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------------------------#
+
+
 ######################################################################
-# Training and Evaluating
-# =======================
+# The files are all in Unicode, to simplify we will turn Unicode
+# characters to ASCII, make everything lowercase
 #
-# With all these helper functions in place (it looks like extra work, but
-# it's easier to run multiple experiments easier) we can actually
-# initialize a network and start training.
-#
-# Remember that the input sentences were heavily filtered. For this small
-# dataset we can use relatively small networks of 256 hidden nodes and a
-# single GRU layer. After about 40 minutes on a MacBook CPU we'll get some
-# reasonable results.
-#
-# .. Note:: 
-#    If you run this notebook you can train, interrupt the kernel,
-#    evaluate, and continue training later. Comment out the lines where the
-#    encoder and decoder are initialized and run ``trainIters`` again.
-#
+
+# Turn a Unicode string to plain ASCII, thanks to
+# http://stackoverflow.com/a/518232/2809427
+def unicodeToAscii(s):
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', s)
+        if unicodedata.category(c) != 'Mn'
+    )
+
+# Lowercase, trim, and remove non-letter characters
+def normalizeString(s):
+    s = unicodeToAscii(s.lower().strip())
+    # s = re.sub(r"([.!?])", r" \1", s)
+    # s = re.sub(r"[^a-zA-Z.!?]+", r" ", s)
+    return s
+
+
+######################################################################
+# read data specific for SQUAD dataset
+
+def readSQuAD(path_to_data):
+    # output (context, question, answer) triplets
+    print("Reading dataset...")
+    triplets = []
+    with open(path_to_data) as f:
+        train = json.load(f)
+        train = train['data']
+        for s in range(0, len(train)):
+            samples = train[s]['paragraphs']
+            for p in range(0, len(samples)):
+                context = samples[p]['context']
+                # turn from unicode to ascii and lower case everything
+                context = normalizeString(context)
+                qas = samples[p]['qas']
+                for i in range(0, len(qas)):
+                # print('current s,p,i are: ' + str(s)+str(p)+str(i))
+                    answers = qas[i]['answers']
+                    question = qas[i]['question']
+                    # turn from unicode to ascii and lower case everything
+                    question = normalizeString(question)
+                    for a in range(0, len(answers)):
+                        ans_text = answers[a]['text']
+                        # turn from unicode to ascii and lower case everything
+                        ans_text = normalizeString(ans_text)
+                        triplets.append((context, question, ans_text))
+    return triplets
+
+
+# turns a sentence into individual token and link each to the embedding vector 
+def tokenizeSentence(sentence, embeddings_index, embeddings_size):
+    tokenized_sentence = spacynlp.tokenizer(sentence)
+    # # an additional preprocessing step to separate words and non-words when they appear together
+    # tokenized_sentence = [token.string.strip() for token in tokenized_sentence]
+    # for t in range(0, len(tokenized_sentence)):
+
+    token_num = len(tokenized_sentence)
+    var = torch.FloatTensor(token_num+1, embeddings_size) #add one dimension for EOS
+    # var[0] = embeddings_index['SOS']
+    for t in range(0, token_num):
+        try:
+            var[t] = embeddings_index[tokenized_sentence[t].string.strip()]
+        except KeyError:
+            # print('original word>')
+            # print(tokenized_sentence[t])
+            # print('string format>')
+            # print(tokenized_sentence[t].string)
+            # print(sentence)
+            # print('-------------------------------------')
+            # print('-------------------------------------')
+            var[t] = embeddings_index['UNK']
+    # add end of sentence token to all sentences
+    var[-1] = embeddings_index['EOS']
+    return var
+
+
+# change these to pytorch variables to prepare as input to the model
+def variablesFromTriplets(triple, embeddings_index, embeddings_size):
+    context = tokenizeSentence(triple[0], embeddings_index, embeddings_size)
+    answer = tokenizeSentence(triple[2], embeddings_index, embeddings_size)
+    question = tokenizeSentence(triple[1], embeddings_index, embeddings_size)
+    return (Variable(context), Variable(question), Variable(answer))
+
+
+
+
+
+#-----------------------------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------------------------#
+# evaluation script
+#-----------------------------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------------------------#
+
 
 ######### set paths
 # default values for the dataset and the path to the project/dataset
@@ -918,6 +540,7 @@ f_name = 'train-v1.1.json'
 path_to_dataset = '/home/jack/Documents/QA_QG/data/'
 path_to_data = path_to_dataset + dataset + '/' + f_name
 GLOVE_DIR = path_to_dataset + 'glove.6B/'
+
 
 ######### first load the pretrained word embeddings
 embeddings_index = {}
@@ -942,8 +565,13 @@ embeddings_index['SOS'] = SOS_token
 embeddings_index['EOS'] = EOS_token
 embeddings_index['UNK'] = UNK_token
 
-# read data
+
+######### read corpus
 triplets = readSQuAD(path_to_data)
+
+######### corpus preprocessing
+# TODO: need some work here: deal with inprecise tokenizer, 
+# words that do not appear in embeddings, etc
 
 ## find all unique tokens in the data (should be a subset of the number of embeddings)
 data_tokens = ['SOS', 'EOS', 'UNK']
@@ -983,6 +611,8 @@ print('')
 print('start training...')
 print('')
 
+
+######### set up model
 hidden_size1 = 256
 hidden_size2 = 64
 # context encoder
@@ -998,6 +628,8 @@ if use_cuda:
     encoder2 = encoder2.cuda()
     attn_decoder1 = attn_decoder1.cuda()
 
+
+######### start training
 trainIters(encoder1, encoder2, attn_decoder1, embeddings_index, 75000, print_every=5000)
 
 ######################################################################
