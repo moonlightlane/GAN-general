@@ -73,7 +73,7 @@ class EncoderRNN(nn.Module):
     def forward(self, input, hidden, embeddings_index):
         # input is a word token
         embedded = Variable(embeddings_index[input].view(1, 1, -1))
-        embedded = input.view(1,1,-1)
+        # embedded = input.view(1,1,-1)
         if use_cuda:
             embedded = embedded.cuda()
         output = embedded
@@ -118,7 +118,7 @@ class AttnDecoderRNN(nn.Module):
             attn = attn.cuda()
 
         embedded = self.embeddings_index[input].view(1, 1, -1)
-        embedded = input.view(1,1,-1)
+        # embedded = input.view(1,1,-1)
         if use_cuda:
             embedded = embedded.cuda()
         # embedded = self.dropout(embedded)
