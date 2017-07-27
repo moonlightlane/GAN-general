@@ -198,13 +198,13 @@ def train(context_var, ans_var, question_var, embeddings_index,
     	encoder_output_context, encoder_hidden_context = encoder1(
         	context_var[ei], encoder_hidden_context)
     	encoder_outputs_context[ei] = encoder_output_context[0][0]
-
+    print(type(encoder_output_context[0][0]))
     # answer encoding
     for ei in range(input_length_answer):
         encoder_output_answer, encoder_hidden_answer = encoder2(
             ans_var[ei], encoder_hidden_answer)
         encoder_outputs_answer[ei] = encoder_output_answer[0][0]
-
+    print(type(encoder_output_answer[0][0]))
     # concat the context encoding and answer encoding
     encoder_output = torch.cat((encoder_output_context, encoder_output_answer),1)
     encoder_outputs = torch.cat((encoder_outputs_context, encoder_outputs_answer),0)
