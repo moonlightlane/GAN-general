@@ -305,7 +305,7 @@ def trainIters(encoder1, encoder2, decoder, embeddings_index, word2index,
     encoder_optimizer1 = optim.SGD(encoder1.parameters(), lr=learning_rate)
     encoder_optimizer2 = optim.SGD(encoder2.parameters(), lr=learning_rate)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
-    training_triplets = [variablesFromTriplets(random.choice(triplets))
+    training_triplets = [variablesFromTriplets(random.choice(triplets), embeddings_index)
                         for i in range(n_iters)]
     criterion = nn.NLLLoss()
 
@@ -555,7 +555,7 @@ def post_proc_tokenizer(tokenized_sentence):
 # x = post_proc_tokenizer(spacynlp.tokenizer(u'mid-1960s'))
 
 # turns a sentence into individual tokens
-def tokenizeSentence(sentence):
+def tokenizeSentence(sentence, embeddings_index):
     tokenized_sentence = spacynlp.tokenizer(sentence)
     # # an additional preprocessing step to separate words and non-words when they appear together
     proc_tokenized_sentence = post_proc_tokenizer(tokenized_sentence)
@@ -571,6 +571,7 @@ def tokenizeSentence(sentence):
         try:
             # var[t] = word2index[proc_tokenized_sentence[t]]
             var.append(proc_tokenized_sentence[t])
+            temp = embeddings_index[proc_tokenized_sentence[t]]
         except KeyError:
             # print('original word>')
             # print(tokenized_sentence[t])
@@ -589,10 +590,10 @@ def tokenizeSentence(sentence):
 
 # change these to pytorch variables to prepare as input to the model
 # each context, question, answer is a list of indices
-def variablesFromTriplets(triple):
-    context = tokenizeSentence(triple[0])
-    answer = tokenizeSentence(triple[2])
-    question = tokenizeSentence(triple[1])
+def variablesFromTriplets(triple, embeddings_index):
+    context = tokenizeSentence(triple[0], embeddings_index)
+    answer = tokenizeSentence(triple[2], embeddings_index)
+    question = tokenizeSentence(triple[1], embeddings_index)
     return (context, question, answer)
 
 
