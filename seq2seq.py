@@ -60,7 +60,7 @@ use_cuda = torch.cuda.is_available()
 # -----------
 class EncoderRNN(nn.Module):
 	# output is the same dimension as input (dimension defined by externalword embedding model)
-    def __init__(self, input_size, hidden_size, embeddings_index, n_layers=1):
+    def __init__(self, input_size, hidden_size, n_layers=1):
         super(EncoderRNN, self).__init__()
         self.n_layers = n_layers
         self.hidden_size = hidden_size
@@ -70,7 +70,7 @@ class EncoderRNN(nn.Module):
         # self.embedding = nn.Embedding(input_size, input_dim)
         self.gru = nn.GRU(input_size, hidden_size)
 
-    def forward(self, input, hidden, embeddings_index):
+    def forward(self, input, hidden):
         # embedded = Variable(embeddings_index[input].view(1, 1, -1))
         embedded = input.view(1,1,-1)
         output = embedded
@@ -91,14 +91,14 @@ class EncoderRNN(nn.Module):
 # ^^^^^^^^^^^^^^^^^
 class AttnDecoderRNN(nn.Module):
     def __init__(self, input_size, hidden_size, output_size, 
-        embeddings_index, n_layers=1, dropout_p=0.1):
+        n_layers=1, dropout_p=0.1):
         super(AttnDecoderRNN, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.output_size = output_size
         self.n_layers = n_layers
         self.dropout_p = dropout_p
-        self.embeddings_index = embeddings_index
+        # self.embeddings_index = embeddings_index
 
         # self.attn = nn.Linear(self.input_size+self.hidden_size, self.enc_output_len)
         self.attn_combine = nn.Linear(self.input_size+self.hidden_size, self.input_size)
@@ -278,9 +278,15 @@ def timeSince(since, percent):
 #
 
 def trainIters(encoder1, encoder2, decoder, embeddings_index, 
+    path_to_loss_f, path_to_sample_out_f, path_to_exp_out,
     n_iters, print_every=1000, plot_every=100, learning_rate=0.01):
+
+    # open the files
+    loss_f = open(path_to_loss_f,'w') 
+    sample_out_f = open(path_to_sample_out_f, 'w')
+
     start = time.time()
-    plot_losses = []
+    # plot_losses = []
     print_loss_total = 0  # Reset every print_every
     plot_loss_total = 0  # Reset every plot_every
 
@@ -316,10 +322,12 @@ def trainIters(encoder1, encoder2, decoder, embeddings_index,
 
         if iter % plot_every == 0:
             plot_loss_avg = plot_loss_total / plot_every
-            plot_losses.append(plot_loss_avg)
+            # plot_losses.append(plot_loss_avg)
             plot_loss_total = 0
+            loss_f.write(str(plot_loss_avg))
+            loss_f.write('\n')
 
-    showPlot(plot_losses)
+    # showPlot(plot_losses)
 
 
 ######################################################################
@@ -588,7 +596,13 @@ f_name = 'train-v1.1.json'
 path_to_dataset = '/home/jack/Documents/QA_QG/data/'
 path_to_data = path_to_dataset + dataset + '/' + f_name
 GLOVE_DIR = path_to_dataset + 'glove.6B/'
-
+# path for experiment outputs
+exp_name = 'QG_seq2seq_baseline'
+path_to_exp_out = '/home/jack/Documents/QA_QG/exp_results/' + exp_name
+loss_f = 'loss.txt'
+sample_out_f = 'sample_outputs.txt'
+path_to_loss_f = path_to_exp_out + '/' + loss_f
+path_to_sample_out_f = path_to_exp_out + '/' + sample_out_f
 
 ######### first load the pretrained word embeddings
 embeddings_index = {}
@@ -677,7 +691,14 @@ if use_cuda:
 
 
 ######### start training
-trainIters(encoder1, encoder2, attn_decoder1, embeddings_index, 75000, print_every=5000)
+trainIters(encoder1, encoder2, attn_decoder1, embeddings_index, 
+            path_to_loss_f, path_to_sample_out_f, path_to_exp_out,
+            75000, print_every=5000)
+
+# save the final model
+torch.save(encoder1, path_to_exp_out+'/encoder1.pth')
+torch.save(encoder2, path_to_exp_out+'/encoder2.pth')
+torch.save(decoder, path_to_exp_out+'/decoder.pth')
 
 ######################################################################
 #
