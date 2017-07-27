@@ -65,13 +65,14 @@ class EncoderRNN(nn.Module):
         self.n_layers = n_layers
         self.hidden_size = hidden_size
         self.input_size = input_size
-        self.embeddings_index = embeddings_index
+        # self.embeddings_index = embeddings_index
 
         # self.embedding = nn.Embedding(input_size, input_dim)
         self.gru = nn.GRU(input_size, hidden_size)
 
-    def forward(self, input, hidden):
-        embedded = self.embeddings_index[input].view(1, 1, -1)
+    def forward(self, input, hidden, embeddings_index):
+        # embedded = Variable(embeddings_index[input].view(1, 1, -1))
+        embedded = input.view(1,1,-1)
         output = embedded
         for i in range(self.n_layers):
             output, hidden = self.gru(output, hidden)
@@ -111,7 +112,8 @@ class AttnDecoderRNN(nn.Module):
         # instead of in __init__ function
         attn = nn.Linear(self.input_size+self.hidden_size, encoder_outputs.size()[0])
 
-        embedded = self.embeddings_index[input].view(1, 1, -1)
+        # embedded = self.embeddings_index[input].view(1, 1, -1)
+        embedded = input.view(1,1,-1)
         # embedded = self.dropout(embedded)
 
         attn_weights = F.softmax(
@@ -503,7 +505,7 @@ def post_proc_tokenizer(tokenized_sentence):
             for s in range(0, len(token)):
                 if s > index:
                     if token[s].isdigit():
-                        print('find digit')
+                        # print('find digit')
                         for i in range(s,len(token)):
                             if (not token[i].isdigit()):
                                 proc_tokenized_sentence.append(token[s:i])
@@ -514,7 +516,7 @@ def post_proc_tokenizer(tokenized_sentence):
                                 index = i
                                 break
                     elif token[s].isalpha():
-                        print('find alphabet')
+                        # print('find alphabet')
                         for i in range(s,len(token)):
                             if (not token[i].isalpha()):
                                 proc_tokenized_sentence.append(token[s:i])
@@ -525,7 +527,7 @@ def post_proc_tokenizer(tokenized_sentence):
                                 index = i
                                 break
                     else:
-                        print('find symbol')
+                        # print('find symbol')
                         proc_tokenized_sentence.append(token[s])
                         index += 1
                     # print(index)
@@ -538,7 +540,7 @@ def tokenizeSentence(sentence, embeddings_index, embeddings_size):
     tokenized_sentence = spacynlp.tokenizer(sentence)
     # # an additional preprocessing step to separate words and non-words when they appear together
     proc_tokenized_sentence = post_proc_tokenizer(tokenized_sentence)
-    print(proc_tokenized_sentence)
+    # print(proc_tokenized_sentence)
     # tokenized_sentence = [token.string.strip() for token in tokenized_sentence]
     # for t in range(0, len(tokenized_sentence)):
     token_num = len(proc_tokenized_sentence)
