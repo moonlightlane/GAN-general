@@ -760,7 +760,7 @@ def trainIters(encoder1, encoder2, decoder, embeddings_index,
         training_triple = training_triplets[iter - 1]
         context_var = training_triple[0]
         ans_var = training_triple[2]
-        question_var = training_pair[1]
+        question_var = training_triple[1]
  
         loss = train(context_var, ans_var, question_var, encoder1, embeddings_index,
                      encoder2, decoder, encoder_optimizer1, encoder_optimizer2, 
@@ -961,9 +961,9 @@ print('original tokens: ' + str(token_subset))
 # extra preprocessing step to replace all tokens in data_tokens 
 # that does not appear in embeddings_index to 'UNK'
 embeddings_keys = embeddings_index.keys()
-for t in range(0, len(data_tokens)):
-    if data_tokens[t] not in embeddings_keys:
-        data_tokens[t] = 'UNK'
+OOV_indices = [i for i, e in enumerate(data_tokens) if e not in set(embeddings_keys)] # indices of out of vocabulary words in data_tokens
+for i in OOV_indices:
+    data_tokens[i] = 'UNK'
 # debugging: randomly sample 20 tokens from data_tokens. shouldn't be all UNK
 token_subset = [data_tokens[i] for i in token_indices]
 print('modified tokens: ' + str(token_subset))
