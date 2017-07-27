@@ -634,7 +634,7 @@ token_subset = [data_tokens[i] for i in token_indices]
 print('original tokens: ' + str(token_subset))
 # extra preprocessing step to replace all tokens in data_tokens 
 # that does not appear in embeddings_index to 'UNK'
-OOV_indices = [i for i, e in enumerate(data_tokens) if e not in set(embeddings_index.keys())] # indices of out of vocabulary words in data_tokens
+# OOV_indices = [i for i, e in enumerate(data_tokens) if e not in set(embeddings_index.keys())] # indices of out of vocabulary words in data_tokens
 for i in OOV_indices:
     data_tokens[i] = 'UNK'
 # debugging: randomly sample 20 tokens from data_tokens. shouldn't be all UNK
