@@ -73,6 +73,8 @@ class EncoderRNN(nn.Module):
     def forward(self, input, hidden):
         # embedded = Variable(embeddings_index[input].view(1, 1, -1))
         embedded = input.view(1,1,-1)
+        if use_cuda:
+            embedded = embedded.cuda()
         output = embedded
         for i in range(self.n_layers):
             output, hidden = self.gru(output, hidden)
@@ -114,6 +116,8 @@ class AttnDecoderRNN(nn.Module):
 
         # embedded = self.embeddings_index[input].view(1, 1, -1)
         embedded = input.view(1,1,-1)
+        if use_cuda:
+            embedded = embedded.cuda()
         # embedded = self.dropout(embedded)
 
         attn_weights = F.softmax(
