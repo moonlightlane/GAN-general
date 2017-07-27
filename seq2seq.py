@@ -296,8 +296,8 @@ def trainIters(encoder1, encoder2, decoder, embeddings_index,
         ans_var = training_triple[2]
         question_var = training_triple[1]
  
-        loss = train(context_var, ans_var, question_var, encoder1, embeddings_index,
-                     encoder2, decoder, encoder_optimizer1, encoder_optimizer2, 
+        loss = train(context_var, ans_var, question_var, embeddings_index,
+                     encoder1, encoder2, decoder, encoder_optimizer1, encoder_optimizer2, 
                      decoder_optimizer, criterion)
         print_loss_total += loss
         plot_loss_total += loss
@@ -488,14 +488,59 @@ def readSQuAD(path_to_data):
     return triplets
 
 
+# helper function for post processing tokenizer 
+# outputs a list of strings
+def post_proc_tokenizer(tokenized_sentence):
+    proc_tokenized_sentence = []
+    for t in range(0, len(tokenized_sentence)):
+        token = tokenized_sentence[t].string.strip()
+        # first check if the string is number or alphabet only
+        if token.isdigit() or token.isalpha():
+            proc_tokenized_sentence.append(token)
+        # sepatate this token into substrings of only words, numbers, or individual symbols
+        else:
+            index = -1
+            for s in range(0, len(token)):
+                if s >= index:
+                    if token[s].isdigit():
+                        print('find digit')
+                        for i in range(s,len(token)):
+                            if (not token[i].isdigit()):
+                                proc_tokenized_sentence.append(token[s:i])
+                                index = i
+                                break
+                            elif (token[i].isdigit()) and (i == len(token)-1):
+                                proc_tokenized_sentence.append(token[s:i+1])
+                                index = i
+                                break
+                    elif token[s].isalpha():
+                        print('find alphabet')
+                        for i in range(s,len(token)):
+                            if (not token[i].isalpha()):
+                                proc_tokenized_sentence.append(token[s:i])
+                                index = i
+                                break
+                            elif (token[i].isalpha()) and (i == len(token)-1):
+                                proc_tokenized_sentence.append(token[s:i+1])
+                                index = i
+                                break
+                    else:
+                        print('find symbol')
+                        proc_tokenized_sentence.append(token[s])
+                        index += 1
+                    print(index)
+    return proc_tokenized_sentence
+# test
+x = post_proc_tokenizer(spacynlp.tokenizer(u'mid-1960s'))
+
 # turns a sentence into individual token and link each to the embedding vector 
 def tokenizeSentence(sentence, embeddings_index, embeddings_size):
     tokenized_sentence = spacynlp.tokenizer(sentence)
     # # an additional preprocessing step to separate words and non-words when they appear together
+    proce_tokenized_sentence = post_proc_tokenizer(tokenized_sentence)
     # tokenized_sentence = [token.string.strip() for token in tokenized_sentence]
     # for t in range(0, len(tokenized_sentence)):
-
-    token_num = len(tokenized_sentence)
+    token_num = len(proc_tokenized_sentence)
     var = torch.FloatTensor(token_num+1, embeddings_size) #add one dimension for EOS
     # var[0] = embeddings_index['SOS']
     for t in range(0, token_num):
@@ -588,8 +633,7 @@ token_subset = [data_tokens[i] for i in token_indices]
 print('original tokens: ' + str(token_subset))
 # extra preprocessing step to replace all tokens in data_tokens 
 # that does not appear in embeddings_index to 'UNK'
-embeddings_keys = embeddings_index.keys()
-OOV_indices = [i for i, e in enumerate(data_tokens) if e not in set(embeddings_keys)] # indices of out of vocabulary words in data_tokens
+OOV_indices = [i for i, e in enumerate(data_tokens) if e not in set(embeddings_index.keys())] # indices of out of vocabulary words in data_tokens
 for i in OOV_indices:
     data_tokens[i] = 'UNK'
 # debugging: randomly sample 20 tokens from data_tokens. shouldn't be all UNK
@@ -697,27 +741,3 @@ evaluateAndShowAttention("je ne crains pas de mourir .")
 
 evaluateAndShowAttention("c est un jeune directeur plein de talent .")
 
-
-######################################################################
-# Exercises
-# =========
-#
-# -  Try with a different dataset
-#
-#    -  Another language pair
-#    -  Human → Machine (e.g. IOT commands)
-#    -  Chat → Response
-#    -  Question → Answer
-#
-# -  Replace the embeddings with pre-trained word embeddings such as word2vec or
-#    GloVe
-# -  Try with more layers, more hidden units, and more sentences. Compare
-#    the training time and results.
-# -  If you use a translation file where pairs have two of the same phrase
-#    (``I am test \t I am test``), you can use this as an autoencoder. Try
-#    this:
-#
-#    -  Train as an autoencoder
-#    -  Save only the Encoder network
-#    -  Train a new Decoder for translation from there
-#
