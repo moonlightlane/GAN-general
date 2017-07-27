@@ -167,7 +167,7 @@ class AttnDecoderRNN(nn.Module):
 # network is exploited, it may exhibit
 # instability 
 
-teacher_forcing_ratio = 0.5
+teacher_forcing_ratio = 1 # default in original code is 0.5
 
 # context = input_variable
 def train(context_var, ans_var, question_var, embeddings_index,
@@ -212,11 +212,11 @@ def train(context_var, ans_var, question_var, embeddings_index,
     
     # decoder_hidden = torch.cat(encoder_hidden_context, encoder_hidden_answer)
 
-    #debug
-    print(decoder_input.is_cuda)
-    print(decoder_hidden.is_cuda)
-    print(encoder_output.is_cuda)
-    print(encoder_outputs.is_cuda)
+    # #debug
+    # print(decoder_input.is_cuda)
+    # print(decoder_hidden.is_cuda)
+    # print(encoder_output.is_cuda)
+    # print(encoder_outputs.is_cuda)
 
     use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
 
