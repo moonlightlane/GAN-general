@@ -282,8 +282,8 @@ def trainIters(encoder1, encoder2, decoder, embeddings_index,
     n_iters, print_every=1000, plot_every=100, learning_rate=0.01):
 
     # open the files
-    loss_f = open(path_to_loss_f,'w') 
-    sample_out_f = open(path_to_sample_out_f, 'w')
+    loss_f = open(path_to_loss_f,'w+') 
+    sample_out_f = open(path_to_sample_out_f, 'w+')
 
     start = time.time()
     # plot_losses = []
