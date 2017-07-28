@@ -235,7 +235,7 @@ def train(context_var, ans_var, question_var, embeddings_index, word2index,
         for di in range(target_length):
             decoder_output, decoder_hidden, decoder_attention = decoder(
                 decoder_input, decoder_hidden, encoder_output, encoder_outputs, embeddings_index)
-            loss += criterion(decoder_output[0], word2index[question_var[di]])
+            loss += criterion(decoder_output[0], Variable(torch.LongTensor(word2index[question_var[di]])))
             decoder_input = Variable(embeddings_index(question_var[di]))  # Teacher forcing
             decoder_input = decoder_input.cuda() if use_cuda else decoder_input
 
@@ -250,7 +250,7 @@ def train(context_var, ans_var, question_var, embeddings_index, word2index,
             decoder_input = Variable(embeddings_index(ni))
             decoder_input = decoder_input.cuda() if use_cuda else decoder_input
             
-            loss += criterion(decoder_output[0], word2index[question_var[di]])
+            loss += criterion(decoder_output[0], Variable(torch.LongTensor(word2index[question_var[di]])))
             if ni == EOS_token:
                 break
 
