@@ -236,7 +236,7 @@ def train(context_var, ans_var, question_var, embeddings_index, word2index,
             decoder_output, decoder_hidden, decoder_attention = decoder(
                 decoder_input, decoder_hidden, encoder_output, encoder_outputs, embeddings_index)
 
-            target = Variable(torch.LongTensor(word2index[question_var[di]]))
+            target = Variable(torch.LongTensor([word2index[question_var[di]]]))
             target = target.cuda() if use_cuda else target
 
             loss += criterion(decoder_output[0], target)
@@ -255,7 +255,7 @@ def train(context_var, ans_var, question_var, embeddings_index, word2index,
             decoder_input = Variable(embeddings_index(ni))
             decoder_input = decoder_input.cuda() if use_cuda else decoder_input
             
-            target = Variable(torch.LongTensor(word2index[question_var[di]]))
+            target = Variable(torch.LongTensor([word2index[question_var[di]]]))
             target = target.cuda() if use_cuda else target
 
             loss += criterion(decoder_output[0], target)
