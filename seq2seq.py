@@ -73,7 +73,10 @@ class EncoderRNN(nn.Module):
 
     def forward(self, input, hidden, embeddings_index):
         # input is a word token
-        embedded = Variable(embeddings_index[input].view(1, 1, -1))
+        try:
+            embedded = Variable(embeddings_index[input].view(1, 1, -1))
+        except KeyError:
+            embedded = Variable(embeddings_index['UNK'].view(1, 1, -1))
         # embedded = input.view(1,1,-1)
         if use_cuda:
             embedded = embedded.cuda()
@@ -117,8 +120,11 @@ class AttnDecoderRNN(nn.Module):
         attn = nn.Linear(self.input_size+self.hidden_size, encoder_outputs.size()[0])
         if use_cuda:
             attn = attn.cuda()
-
-        embedded = self.embeddings_index[input].view(1, 1, -1)
+        
+        try:
+            embedded = Variable(embeddings_index[input].view(1, 1, -1))
+        except KeyError:
+            embedded = Variable(embeddings_index['UNK'].view(1, 1, -1))
         # embedded = input.view(1,1,-1)
         if use_cuda:
             embedded = embedded.cuda()
@@ -307,11 +313,11 @@ def trainIters(encoder1, encoder2, decoder, embeddings_index, word2index,
     encoder_optimizer2 = optim.SGD(encoder2.parameters(), lr=learning_rate)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
 
-    start = time.time()
+    # start = time.time()
     training_triplets = [variablesFromTriplets(random.choice(triplets), embeddings_index)
                         for i in range(n_iters)]
-    end = time.time()
-    print(end - start)
+    # end = time.time()
+    # print(end - start)
     criterion = nn.NLLLoss()
 
     for iter in range(1, n_iters + 1):
@@ -573,12 +579,16 @@ def tokenizeSentence(sentence, embeddings_index):
     var = []
     # var[0] = embeddings_index['SOS']
     for t in range(0, token_num):
-        if proc_tokenized_sentence[t] in embeddings_index.keys():
-            # var[t] = word2index[proc_tokenized_sentence[t]]
-            var.append(proc_tokenized_sentence[t])
-        else:
-            # var[t] = word2index['UNK']
-            var.append('UNK')
+        var.append(proc_tokenized_sentence[t])
+        # try:
+        #     temp = word2index(proc_tokenized_sentence[t])
+        #     var.append()
+        # if proc_tokenized_sentence[t] in embeddings_index.keys():
+        #     # var[t] = word2index[proc_tokenized_sentence[t]]
+        #     var.append(proc_tokenized_sentence[t])
+        # else:
+        #     # var[t] = word2index['UNK']
+        #     var.append('UNK')
     # add end of sentence token to all sentences
     # var[-1] = word2index['EOS']
     var.append('EOS')
