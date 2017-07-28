@@ -304,7 +304,7 @@ def timeSince(since, percent):
 # of examples, time so far, estimated time) and average loss.
 #
 
-def trainIters(encoder1, encoder2, decoder, embeddings_index, word2index,
+def trainIters(encoder1, encoder2, decoder, embeddings_index, word2index, data_tokens,
     path_to_loss_f, path_to_sample_out_f, path_to_exp_out,
     n_iters, print_every=1000, plot_every=100, learning_rate=0.01):
 
@@ -322,7 +322,7 @@ def trainIters(encoder1, encoder2, decoder, embeddings_index, word2index,
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
 
     # start = time.time()
-    training_triplets = [variablesFromTriplets(random.choice(triplets), embeddings_index)
+    training_triplets = [variablesFromTriplets(random.choice(triplets), data_tokens)
                         for i in range(n_iters)]
     # end = time.time()
     # print(end - start)
@@ -574,7 +574,7 @@ def post_proc_tokenizer(tokenized_sentence):
 # x = post_proc_tokenizer(spacynlp.tokenizer(u'mid-1960s'))
 
 # turns a sentence into individual tokens
-def tokenizeSentence(sentence, embeddings_index):
+def tokenizeSentence(sentence, data_tokens):
     tokenized_sentence = spacynlp.tokenizer(sentence)
     # # an additional preprocessing step to separate words and non-words when they appear together
     proc_tokenized_sentence = post_proc_tokenizer(tokenized_sentence)
@@ -587,7 +587,11 @@ def tokenizeSentence(sentence, embeddings_index):
     var = []
     # var[0] = embeddings_index['SOS']
     for t in range(0, token_num):
-        var.append(proc_tokenized_sentence[t])
+        # the first if loop only for experimental use to aviod large vocab size
+        if proc_tokenized_sentence[t] not in data_tokens:
+            var.append('UNK')
+        else:
+            var.append(proc_tokenized_sentence[t])
         # try:
         #     temp = word2index(proc_tokenized_sentence[t])
         #     var.append()
@@ -676,6 +680,10 @@ for triple in triplets:
     a = [token.string.strip() for token in spacynlp.tokenizer(triple[2])]
     data_tokens += c + q + a
 data_tokens = list(set(data_tokens)) # find unique
+
+# experimental usage only
+data_tokens = data_tokens[0:10000]
+
 num_tokens = len(data_tokens)
 # generate some index
 # token_indices = random.sample(range(0, len(data_tokens)), 20)
@@ -732,7 +740,7 @@ if use_cuda:
 
 
 ######### start training
-trainIters(encoder1, encoder2, attn_decoder1, embeddings_index, word2index,
+trainIters(encoder1, encoder2, attn_decoder1, embeddings_index, word2index, data_tokens,
             path_to_loss_f, path_to_sample_out_f, path_to_exp_out,
             75000, print_every=1)
 
