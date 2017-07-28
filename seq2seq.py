@@ -21,6 +21,7 @@ output: a question, represented by a sequence of tokens
 #-----------------------------------------------------------------------------------------------#
 #-----------------------------------------------------------------------------------------------#
 from __future__ import unicode_literals, print_function, division
+import time
 from io import open
 import unicodedata
 import string
@@ -305,8 +306,12 @@ def trainIters(encoder1, encoder2, decoder, embeddings_index, word2index,
     encoder_optimizer1 = optim.SGD(encoder1.parameters(), lr=learning_rate)
     encoder_optimizer2 = optim.SGD(encoder2.parameters(), lr=learning_rate)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
+
+    start = time.time()
     training_triplets = [variablesFromTriplets(random.choice(triplets), embeddings_index)
                         for i in range(n_iters)]
+    end = time.time()
+    print(end - start)
     criterion = nn.NLLLoss()
 
     for iter in range(1, n_iters + 1):
