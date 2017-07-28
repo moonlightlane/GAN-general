@@ -676,6 +676,7 @@ for triple in triplets:
     a = [token.string.strip() for token in spacynlp.tokenizer(triple[2])]
     data_tokens += c + q + a
 data_tokens = list(set(data_tokens)) # find unique
+num_tokens = len(data_tokens)
 # generate some index
 # token_indices = random.sample(range(0, len(data_tokens)), 20)
 # # debugging purpose
@@ -710,11 +711,11 @@ print('')
 hidden_size1 = 64
 hidden_size2 = 64
 # context encoder
-encoder1 = EncoderRNN(embeddings_size, hidden_size1)
+encoder1 = EncoderRNN(num_tokens, hidden_size1)
 # answer encoder
-encoder2 = EncoderRNN(embeddings_size, hidden_size2)
+encoder2 = EncoderRNN(num_tokens, hidden_size2)
 # decoder
-attn_decoder1 = AttnDecoderRNN(embeddings_size, hidden_size1, embeddings_size, 
+attn_decoder1 = AttnDecoderRNN(num_tokens, hidden_size1, num_tokens, 
                                 1, dropout_p=0.1)
 
 if use_cuda:
