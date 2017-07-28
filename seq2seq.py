@@ -719,9 +719,16 @@ attn_decoder1 = AttnDecoderRNN(num_tokens, hidden_size1, num_tokens,
                                 1, dropout_p=0.1)
 
 if use_cuda:
+    t1 = time.time()
     encoder1 = encoder1.cuda()
+    t2 = time.time()
+    print('time load encoder 1: ' + str(t2 - t1))
     encoder2 = encoder2.cuda()
+    t3 = time.time()
+    print('time load encoder 2: ' + str(t3 - t2))
     attn_decoder1 = attn_decoder1.cuda()
+    t4 = time.time()
+    print('time load decoder: ' + str(t4 - t3))
 
 
 ######### start training
