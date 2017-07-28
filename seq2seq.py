@@ -180,7 +180,7 @@ class AttnDecoderRNN(nn.Module):
 teacher_forcing_ratio = 1 # default in original code is 0.5
 
 # context = input_variable
-def train(context_var, ans_var, question_var, embeddings_index, word2index,
+def train(context_var, ans_var, question_var, embeddings_index, word2index, 
     encoder1, encoder2, decoder, encoder_optimizer1, encoder_optimizer2, 
     decoder_optimizer, criterion):
     encoder_hidden_context = encoder1.initHidden()
@@ -312,7 +312,6 @@ def trainIters(encoder1, encoder2, decoder, embeddings_index, word2index, data_t
     loss_f = open(path_to_loss_f,'w+') 
     sample_out_f = open(path_to_sample_out_f, 'w+')
 
-    start = time.time()
     # plot_losses = []
     print_loss_total = 0  # Reset every print_every
     plot_loss_total = 0  # Reset every plot_every
@@ -719,11 +718,11 @@ print('')
 hidden_size1 = 64
 hidden_size2 = 64
 # context encoder
-encoder1 = EncoderRNN(num_tokens, hidden_size1)
+encoder1 = EncoderRNN(embeddings_size, hidden_size1)
 # answer encoder
-encoder2 = EncoderRNN(num_tokens, hidden_size2)
+encoder2 = EncoderRNN(embeddings_size, hidden_size2)
 # decoder
-attn_decoder1 = AttnDecoderRNN(num_tokens, hidden_size1, num_tokens, 
+attn_decoder1 = AttnDecoderRNN(embeddings_size, hidden_size1, num_tokens, 
                                 1, dropout_p=0.1)
 
 if use_cuda:
