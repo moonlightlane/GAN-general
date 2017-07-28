@@ -684,8 +684,8 @@ print('')
 
 
 ######### set up model
-hidden_size1 = 256
-hidden_size2 = 256
+hidden_size1 = 64
+hidden_size2 = 64
 # context encoder
 encoder1 = EncoderRNN(embeddings_size, hidden_size1)
 # answer encoder
